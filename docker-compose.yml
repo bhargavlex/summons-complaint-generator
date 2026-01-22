@@ -1,0 +1,89 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_server
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: appdb
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    # MySQL healthcheck - ensures MySQL is ready before other services start
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_server
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass redispass
+    # Redis healthcheck - ensures Redis is ready before other services start
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redispass", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: ./backend
+      # Change 'dockerfile: Dockerfile' to your custom Dockerfile name if needed
+      # Example: dockerfile: Dockerfile.prod or dockerfile: Dockerfile.custom
+      dockerfile: Dockerfile
+    container_name: fastapi_server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    # Service dependencies - backend waits for MySQL and Redis to be healthy
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql+pymysql://appuser:apppass@mysql:3306/appdb
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: redispass
+      REDIS_DB: 0
+    # Backend healthcheck - monitors the FastAPI app
+    # Checks if server is responding (tries /health first, falls back to root /)
+    # Note: If your app has a /health endpoint, it will use that. Otherwise checks root.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; import socket; s=socket.socket(); s.settimeout(2); result=s.connect_ex(('localhost', 8000)); s.close(); exit(0) if result == 0 else exit(1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
