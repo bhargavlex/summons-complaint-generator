@@ -1,5 +1,5 @@
 """
-Law Firm Model
+Law Firm Models
 """
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.orm import relationship
