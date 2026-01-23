@@ -6,7 +6,7 @@ Place your COHAN LAW Premises Liability template DOCX file here.
 
 **Expected location:** `backend/templates/cohan/premises/summons_complaint.docx`
 
-This template should contain all 20 placeholders that are defined in the database:
+This template should contain all 20 placeholders that are defined in the database:::
 - «Case_County»
 - «Plaintiff_name_»
 - «Defendant_name»
