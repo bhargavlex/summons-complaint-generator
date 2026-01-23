@@ -11,7 +11,9 @@ import json
 from pathlib import Path
 from app.services.llm_engine import LLMEngine, ExtractionState
 from app.core.config import settings
+from dotenv import load_dotenv
 
+load_dotenv()
 
 async def example_extraction():
     """
@@ -21,13 +23,11 @@ async def example_extraction():
     """
     
     # Initialize LLM Engine
-    llm_engine = LLMEngine(
-        api_key=settings.OPENAI_API_KEY,
-        model=settings.OPENAI_MODEL
-    )
+    # Automatically detects Azure OpenAI or standard OpenAI from .env settings
+    llm_engine = LLMEngine()
     
     # Path to case-screen PDF
-    case_screen_pdf = "Cohan Law PLLC - Sarante - Claim leter.pdf"
+    case_screen_pdf = "D:/summons-complaint-generator/backend/app/services/Cohan Law PLLC - Sarante - case screen.pdf"
     
     # Check if file exists
     if not Path(case_screen_pdf).exists():
@@ -97,14 +97,12 @@ async def example_iterative_extraction():
     Example: Iterative extraction with multiple documents.
     """
     
-    llm_engine = LLMEngine(
-        api_key=settings.OPENAI_API_KEY,
-        model=settings.OPENAI_MODEL
-    )
+    # Initialize LLM Engine (auto-detects configuration from .env)
+    llm_engine = LLMEngine()
     
     # List of documents in priority order
     documents = [
-        "Cohan Law PLLC - Sarante - Claim leter.pdf",  # Priority 1: Case-screen
+        "Cohan Law PLLC - Sarante - case screen.pdf",  # Priority 1: Case-screen
         # "medical_records.pdf",  # Priority 2
         # "police_report.pdf",     # Priority 3
     ]
@@ -140,10 +138,19 @@ async def example_iterative_extraction():
 
 
 if __name__ == "__main__":
-    # Make sure OPENAI_API_KEY is set in environment
-    if not os.getenv("OPENAI_API_KEY"):
-        print("Error: OPENAI_API_KEY environment variable not set")
-        print("Please set it in .env file or environment")
+    # Check if either OpenAI or Azure OpenAI configuration is available
+    
+    has_azure = bool(
+        os.getenv("AZURE_OPENAI_KEY") and 
+        os.getenv("AZURE_OPENAI_ENDPOINT") and 
+        os.getenv("AZURE_OPENAI_DEPLOYMENT")
+    )
+    
+    if not has_azure:
+        print("Error: No OpenAI configuration found")
+        print("Please set one of the following in .env file:")
+        print("  For standard OpenAI: OPENAI_API_KEY and OPENAI_MODEL")
+        print("  For Azure OpenAI: AZURE_OPENAI_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT")
         exit(1)
     
     # Run example

@@ -5,13 +5,18 @@ Supports iterative extraction with temporary field storage.
 
 import json
 import logging
+import io
+import base64
 from typing import Dict, List, Optional, Set, Tuple
 from pathlib import Path
-from openai import AsyncOpenAI
-import pdfplumber
+from openai import AsyncOpenAI, AsyncAzureOpenAI
+from pdf2image import convert_from_path
+from PIL import Image
 from dataclasses import dataclass, field
 from datetime import datetime
 from app.core.config import settings
+from app.services.extraction_tools import generate_extraction_tool, get_all_fields
+import app.core.logging  # noqa: F401  # Initialize logging on import
 
 logger = logging.getLogger(__name__)
 
@@ -73,227 +78,103 @@ class LLMEngine:
     Supports dynamic tool generation and iterative extraction.
     """
     
-    # Template field definitions with descriptions
-    FIELD_DEFINITIONS = {
-        'Venue_Street_Address_': {
-            'type': 'string',
-            'description': 'The street address of the venue/court where the case will be filed',
-            'required': True
-        },
-        'Plaintiff_County_': {
-            'type': 'string',
-            'description': 'The county where the plaintiff resides',
-            'required': True
-        },
-        'Defendant_City': {
-            'type': 'string',
-            'description': 'The city where the defendant resides',
-            'required': True
-        },
-        'Defendant_Street_Address_': {
-            'type': 'string',
-            'description': 'The complete street address of the defendant',
-            'required': True
-        },
-        'Defendant_County': {
-            'type': 'string',
-            'description': 'The county where the defendant resides',
-            'required': True
-        },
-        'Currtent_Month_Year': {
-            'type': 'string',
-            'description': 'Current month and year in format like "January 2024" or "01/2024"',
-            'required': True
-        },
-        'Plaintiff_name_': {
-            'type': 'string',
-            'description': 'Full legal name of the plaintiff',
-            'required': True
-        },
-        'LOA': {
-            'type': 'string',
-            'description': 'Letter of Authorization or Location of Accident',
-            'required': True
-        },
-        'hisher': {
-            'type': 'string',
-            'description': 'Pronoun "his" or "her" based on plaintiff gender',
-            'required': True
-        },
-        'heshe': {
-            'type': 'string',
-            'description': 'Pronoun "he" or "she" based on plaintiff gender',
-            'required': True
-        },
-        'Defendant_State': {
-            'type': 'string',
-            'description': 'The state where the defendant resides (2-letter abbreviation preferred)',
-            'required': True
-        },
-        'Defendant_name': {
-            'type': 'string',
-            'description': 'Full legal name of the defendant',
-            'required': True
-        },
-        'Defendant_Zip_code': {
-            'type': 'string',
-            'description': 'ZIP code of the defendant address',
-            'required': True
-        },
-        'Plaintiff_State_': {
-            'type': 'string',
-            'description': 'The state where the plaintiff resides (2-letter abbreviation preferred)',
-            'required': True
-        },
-        'Case_County': {
-            'type': 'string',
-            'description': 'The county where the case will be filed',
-            'required': True
-        },
-        'LOA__County': {
-            'type': 'string',
-            'description': 'County where the accident/location of authorization occurred',
-            'required': True
-        },
-        'Date_of_accident': {
-            'type': 'string',
-            'description': 'Date when the accident occurred (format: MM/DD/YYYY or similar)',
-            'required': True
-        },
-        'Venue_bases_on': {
-            'type': 'string',
-            'description': 'Basis for venue selection (e.g., "where accident occurred", "where defendant resides")',
-            'required': True
-        },
-        'Venue_County_State': {
-            'type': 'string',
-            'description': 'County and state of the venue (e.g., "New York County, New York")',
-            'required': True
-        },
-        'LOA__State': {
-            'type': 'string',
-            'description': 'State where the accident/location of authorization occurred (2-letter abbreviation)',
-            'required': True
-        }
-    }
-    
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+    def __init__(self):
         """
         Initialize LLM Engine.
         
-        Args:
-            api_key: OpenAI API key. If not provided, loads from settings (from .env file)
-            model: Model to use. If not provided, loads from settings (from .env file), defaults to "gpt-4o"
+        Automatically detects Azure OpenAI or standard OpenAI from settings.
         """
-        # Load from settings if not provided
-        self.api_key = api_key or settings.OPENAI_API_KEY
-        self.model = model or settings.OPENAI_MODEL
-        
-        if not self.api_key:
-            raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY in .env file or pass as parameter.")
-        
-        self.client = AsyncOpenAI(api_key=self.api_key)
-        logger.info(f"LLM Engine initialized with model: {self.model}")
+        # 1. Determine if we are using Azure or Standard OpenAI
+        self.use_azure = (
+            settings.AZURE_OPENAI_KEY is not None 
+            and settings.AZURE_OPENAI_ENDPOINT is not None
+        )
+
+        # 2. Initialize the correct client based on config
+        if self.use_azure:
+            # AZURE CLIENT
+            self.client = AsyncAzureOpenAI(
+                api_key=settings.AZURE_OPENAI_KEY,
+                api_version=settings.AZURE_OPENAI_API_VERSION,
+                azure_endpoint=settings.AZURE_OPENAI_ENDPOINT
+            )
+            self.model = settings.AZURE_OPENAI_DEPLOYMENT
+            logger.info(f"LLM Engine initialized with Azure OpenAI - Deployment: {self.model}")
+        else:
+            # STANDARD OPENAI CLIENT
+            self.client = AsyncOpenAI(
+                api_key=settings.OPENAI_API_KEY
+            )
+            self.model = settings.OPENAI_MODEL or "gpt-4-turbo"
+            logger.info(f"LLM Engine initialized with standard OpenAI - Model: {self.model}")
     
-    def generate_extraction_tool(self, missing_fields: List[str]) -> Dict:
-        """
-        Generate dynamic tool/schema for extraction based on missing fields.
-        
-        Args:
-            missing_fields: List of field names that still need to be extracted
-            
-        Returns:
-            Tool definition dictionary for OpenAI function calling
-        """
-        properties = {}
-        required = []
-        
-        for field_name in missing_fields:
-            if field_name in self.FIELD_DEFINITIONS:
-                field_def = self.FIELD_DEFINITIONS[field_name]
-                properties[field_name] = {
-                    "type": field_def['type'],
-                    "description": field_def['description']
-                }
-                if field_def.get('required', False):
-                    required.append(field_name)
-            else:
-                # Fallback for unknown fields
-                properties[field_name] = {
-                    "type": "string",
-                    "description": f"Extract the value for {field_name}"
-                }
-                required.append(field_name)
-        
-        tool = {
-            "type": "function",
-            "function": {
-                "name": "extract_fields",
-                "description": "Extract field values from the legal document. Only extract fields that are clearly present in the document. If a field is not found, do not include it in the response.",
-                "parameters": {
-                    "type": "object",
-                    "properties": properties,
-                    "required": required
-                }
-            }
-        }
-        
-        logger.info(f"Generated tool for {len(missing_fields)} missing fields")
-        return tool
     
-    async def extract_text_from_pdf(self, pdf_path: str, pages: Optional[List[int]] = None) -> Tuple[str, int]:
+    async def extract_images_from_pdf(self, pdf_path: str, pages: Optional[List[int]] = None) -> Tuple[List[bytes], int]:
         """
-        Extract text from PDF file.
+        Convert PDF pages to images.
         
         Args:
             pdf_path: Path to PDF file
             pages: Optional list of page numbers to extract (1-indexed). If None, extracts all pages.
             
         Returns:
-            Tuple of (extracted_text, total_pages)
+            Tuple of (list of image bytes, total_pages)
         """
         try:
-            text_parts = []
-            total_pages = 0
+            # Convert PDF to images
+            poppler_path = settings.POPPLER_PATH if settings.POPPLER_PATH else None
             
-            with pdfplumber.open(pdf_path) as pdf:
-                total_pages = len(pdf.pages)
+            if pages:
+                # Convert specific pages (pdf2image uses 1-indexed)
+                # Get all pages from first to last, then filter
+                first_page = min(pages)
+                last_page = max(pages)
+                all_images = convert_from_path(
+                    pdf_path,
+                    first_page=first_page,
+                    last_page=last_page,
+                    poppler_path=poppler_path
+                )
+                # Filter to only requested pages (maintain order)
+                sorted_pages = sorted(set(pages))
+                images = [all_images[p - first_page] for p in sorted_pages if p - first_page < len(all_images)]
+            else:
+                # Convert all pages
+                images = convert_from_path(pdf_path, poppler_path=poppler_path)
+            
+            total_pages = len(images)
+            
+            # Convert PIL Images to bytes
+            image_bytes_list = []
+            for img in images:
+                # Convert to RGB if needed (some PDFs have RGBA)
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
                 
-                if pages:
-                    # Extract specific pages
-                    for page_num in pages:
-                        if 1 <= page_num <= total_pages:
-                            page = pdf.pages[page_num - 1]  # Convert to 0-indexed
-                            text = page.extract_text()
-                            if text:
-                                text_parts.append(f"--- Page {page_num} ---\n{text}")
-                else:
-                    # Extract all pages
-                    for page_num, page in enumerate(pdf.pages, start=1):
-                        text = page.extract_text()
-                        if text:
-                            text_parts.append(f"--- Page {page_num} ---\n{text}")
+                # Save to bytes buffer
+                img_bytes = io.BytesIO()
+                img.save(img_bytes, format='JPEG', quality=85)
+                image_bytes_list.append(img_bytes.getvalue())
             
-            extracted_text = "\n\n".join(text_parts)
-            logger.info(f"Extracted text from {pdf_path}: {len(extracted_text)} characters, {total_pages} pages")
-            return extracted_text, total_pages
+            logger.info(f"Converted PDF {pdf_path} to {total_pages} images")
+            return image_bytes_list, total_pages
             
         except Exception as e:
-            logger.error(f"Error extracting text from PDF {pdf_path}: {str(e)}")
+            logger.error(f"Error converting PDF to images {pdf_path}: {str(e)}")
             raise
     
     async def extract_fields_from_document(
         self,
-        document_text: str,
+        image_bytes_list: List[bytes],
         missing_fields: List[str],
         context_summary: str = "",
         document_name: str = ""
     ) -> Dict[str, str]:
         """
-        Extract fields from document text using LLM.
+        Extract fields from document images using LLM vision.
         
         Args:
-            document_text: Text content of the document
+            image_bytes_list: List of image bytes (JPEG) from PDF pages
             missing_fields: List of fields to extract
             context_summary: Summary from previously processed documents
             document_name: Name of the document being processed
@@ -305,8 +186,12 @@ class LLMEngine:
             logger.warning("No missing fields to extract")
             return {}
         
+        if not image_bytes_list:
+            logger.warning("No images provided")
+            return {}
+        
         # Generate dynamic tool
-        tool = self.generate_extraction_tool(missing_fields)
+        tool = generate_extraction_tool(missing_fields)
         
         # Build system prompt
         system_prompt = f"""You are an expert legal document parser. Extract structured field values from legal documents for Summons & Complaint generation.
@@ -315,7 +200,7 @@ CONTEXT FROM PREVIOUSLY PROCESSED DOCUMENTS:
 {context_summary if context_summary else "No previous context available."}
 
 CURRENT TASK:
-Extract the following fields from the document below: {', '.join(missing_fields)}
+Extract the following fields from the document images: {', '.join(missing_fields)}
 
 INSTRUCTIONS:
 1. Only extract fields that are clearly and explicitly present in the document
@@ -328,19 +213,30 @@ INSTRUCTIONS:
 
 Be precise and accurate. Only return fields you are confident about."""
         
-        # Build user prompt
-        user_prompt = f"""Document: {document_name if document_name else 'Legal Document'}
-
-{document_text[:8000]}  # Limit to avoid token limits
-
-Extract the requested fields using the provided tool."""
+        # Build user message with images
+        user_content = [
+            {
+                "type": "text",
+                "text": f"Document: {document_name if document_name else 'Legal Document'}\n\nExtract the requested fields from these document pages using the provided tool."
+            }
+        ]
+        
+        # Add images to user content
+        for i, img_bytes in enumerate(image_bytes_list):
+            img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+            user_content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{img_base64}"
+                }
+            })
         
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "user", "content": user_content}
                 ],
                 tools=[tool],
                 tool_choice={"type": "function", "function": {"name": "extract_fields"}},
@@ -381,7 +277,7 @@ Extract the requested fields using the provided tool."""
             ExtractionState with extracted fields
         """
         if all_fields is None:
-            all_fields = list(self.FIELD_DEFINITIONS.keys())
+            all_fields = get_all_fields()
         
         # Initialize extraction state
         state = ExtractionState(all_fields=set(all_fields))
@@ -390,15 +286,15 @@ Extract the requested fields using the provided tool."""
         logger.info(f"Processing case-screen document: {pdf_path}")
         logger.info(f"Total fields to extract: {len(all_fields)}")
         
-        # Extract text from PDF (all pages for case-screen)
-        document_text, total_pages = await self.extract_text_from_pdf(pdf_path)
+        # Convert PDF to images (all pages for case-screen)
+        image_bytes_list, total_pages = await self.extract_images_from_pdf(pdf_path)
         
         # Get missing fields
         missing_fields = state.get_missing_fields_list()
         
-        # Extract fields from case-screen document
+        # Extract fields from case-screen document images
         extracted = await self.extract_fields_from_document(
-            document_text=document_text,
+            image_bytes_list=image_bytes_list,
             missing_fields=missing_fields,
             context_summary="",  # No context for first iteration
             document_name=Path(pdf_path).name
@@ -476,12 +372,12 @@ Extract the requested fields using the provided tool."""
         processed_pages_for_doc = state.processed_pages.get(doc_name, [])
         
         if pages is None:
-            # Extract all pages
-            document_text, total_pages = await self.extract_text_from_pdf(pdf_path)
+            # Convert all pages to images
+            image_bytes_list, total_pages = await self.extract_images_from_pdf(pdf_path)
             pages_to_process = list(range(1, total_pages + 1))
         else:
-            # Extract specific pages
-            document_text, total_pages = await self.extract_text_from_pdf(pdf_path, pages=pages)
+            # Convert specific pages to images
+            image_bytes_list, total_pages = await self.extract_images_from_pdf(pdf_path, pages=pages)
             pages_to_process = pages
         
         # Filter out already processed pages
@@ -498,9 +394,9 @@ Extract the requested fields using the provided tool."""
             logger.info("All fields already extracted")
             return state
         
-        # Extract fields with context
+        # Extract fields with context from images
         extracted = await self.extract_fields_from_document(
-            document_text=document_text,
+            image_bytes_list=image_bytes_list,
             missing_fields=missing_fields,
             context_summary=state.context_summary,
             document_name=doc_name
