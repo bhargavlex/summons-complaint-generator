@@ -68,3 +68,6 @@ logs/
 
 # Alembic
 alembic/versions/*.pyc
+
+# Temporary/one-off scripts
+backend/recreate_mva_template.py
