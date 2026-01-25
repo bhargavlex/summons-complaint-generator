@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { Edit2, Save, X, Download } from 'lucide-react';
+import { Edit2, Save, X, Download, FileText } from 'lucide-react';
 import { ExtractedField } from '../App';
 
 interface ExtractedFieldsTableProps {
   fields: ExtractedField[];
   updateField: (id: string, newValue: string) => void;
+  onGeneratePreview?: () => void;
+  showPreview?: boolean;
 }
 
-export function ExtractedFieldsTable({ fields, updateField }: ExtractedFieldsTableProps) {
+export function ExtractedFieldsTable({ fields, updateField, onGeneratePreview, showPreview = false }: ExtractedFieldsTableProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
 
@@ -48,13 +50,24 @@ export function ExtractedFieldsTable({ fields, updateField }: ExtractedFieldsTab
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-250px)]">
       <div className="border-b border-gray-200 px-4 py-3 bg-gray-50 flex items-center justify-between">
         <h2 className="font-semibold text-gray-900">Extracted Fields</h2>
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          Export
-        </button>
+        <div className="flex items-center gap-2">
+          {onGeneratePreview && (
+            <button
+              onClick={onGeneratePreview}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+            >
+              <FileText className="w-4 h-4" />
+              {showPreview ? 'Refresh Preview' : 'Generate Preview'}
+            </button>
+          )}
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto">

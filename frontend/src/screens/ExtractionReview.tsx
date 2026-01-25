@@ -33,6 +33,7 @@ interface ExtractionReviewProps {
 
 export function ExtractionReview({ onNavigate }: ExtractionReviewProps) {
   const [fields, setFields] = useState<ExtractedField[]>(initialFields);
+  const [showPreview, setShowPreview] = useState(false);
 
   const updateField = (id: string, newValue: string) => {
     setFields(prevFields =>
@@ -44,13 +45,24 @@ export function ExtractionReview({ onNavigate }: ExtractionReviewProps) {
     );
   };
 
+  const handleGeneratePreview = () => {
+    setShowPreview(true);
+  };
+
   return (
     <>
       <ProgressBar />
       <main className="container mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <DocumentPreview fields={fields} />
-          <ExtractedFieldsTable fields={fields} updateField={updateField} />
+        <div className={`grid gap-6 ${showPreview ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+          {showPreview && (
+            <DocumentPreview fields={fields} />
+          )}
+          <ExtractedFieldsTable
+            fields={fields}
+            updateField={updateField}
+            onGeneratePreview={handleGeneratePreview}
+            showPreview={showPreview}
+          />
         </div>
         <ActionButtons onNavigate={onNavigate} />
       </main>
