@@ -68,10 +68,17 @@ def normalize_placeholder(placeholder: str) -> str:
 def extract_and_store_template_fields(
     db: Session,
     template: Template,
-    extraction_service: FieldExtractionService
+    extraction_service: FieldExtractionService,
+    auto_commit: bool = True
 ) -> Dict:
     """
     Extract fields from template DOCX and create/update TemplateField records.
+    
+    Args:
+        db: Database session
+        template: Template model instance
+        extraction_service: Field extraction service instance
+        auto_commit: If True, commits changes automatically. If False, caller handles commit.
     
     Returns:
         Dictionary with extraction results and statistics
@@ -211,15 +218,19 @@ def extract_and_store_template_fields(
                 f"Field '{tf.field_key}' exists in database but not found in DOCX: {tf.placeholder}"
             )
     
-    # Commit changes
-    try:
-        db.commit()
-        logger.info("✓ Successfully saved template fields to database")
-    except Exception as e:
-        db.rollback()
-        error_msg = f"Error saving to database: {str(e)}"
-        logger.error(error_msg)
-        results["errors"].append(error_msg)
+    # Commit changes if auto_commit is enabled
+    if auto_commit:
+        try:
+            db.commit()
+            logger.info("✓ Successfully saved template fields to database")
+        except Exception as e:
+            db.rollback()
+            error_msg = f"Error saving to database: {str(e)}"
+            logger.error(error_msg)
+            results["errors"].append(error_msg)
+    else:
+        # Caller will handle commit/rollback
+        logger.info("✓ Template fields prepared (commit handled by caller)")
     
     return results
 
