@@ -45,7 +45,7 @@ export function ExtractedFieldsTable({ fields, updateField }: ExtractedFieldsTab
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-280px)]">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-250px)]">
       <div className="border-b border-gray-200 px-4 py-3 bg-gray-50 flex items-center justify-between">
         <h2 className="font-semibold text-gray-900">Extracted Fields</h2>
         <button

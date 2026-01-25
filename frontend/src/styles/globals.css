@@ -189,3 +189,42 @@
 html {
   font-size: var(--font-size);
 }
+
+/* DOCX Preview Styles - Remove extra spacing from mammoth-generated HTML */
+.docx-preview {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.docx-preview p:last-child,
+.docx-preview div:last-child,
+.docx-preview p:last-of-type,
+.docx-preview div:last-of-type {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.docx-preview p {
+  margin-top: 0;
+  margin-bottom: 0.5em;
+}
+
+.docx-preview p:first-child {
+  margin-top: 0;
+}
+
+/* Remove trailing empty elements and whitespace */
+.docx-preview p:empty,
+.docx-preview div:empty {
+  display: none;
+}
+
+.docx-preview br:last-child {
+  display: none;
+}
+
+/* Remove any trailing margins from the last visible element */
+.docx-preview > *:last-child {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
