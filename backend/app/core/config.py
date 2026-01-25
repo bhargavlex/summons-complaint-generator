@@ -15,10 +15,18 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Summons & Complaint Generator"
     
     # Database
-    DATABASE_URL: str = "mysql+pymysql://user:password@localhost:3306/summons_db"
+    DATABASE_URL: str = "mysql+pymysql://appuser:apppass@localhost:3306/appdb"
+    
+    # Redis
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: str = "redispass"
+    REDIS_DB: int = 0
+    
+    # Application
+    DEBUG: bool = True
     
     # OpenAI Configuration (Standard OpenAI)
-    
     
     # Azure OpenAI Configuration
     AZURE_OPENAI_KEY: Optional[str] = os.getenv("AZURE_OPENAI_KEY")
@@ -36,7 +44,9 @@ class Settings(BaseSettings):
         return bool(self.AZURE_OPENAI_KEY and self.AZURE_OPENAI_ENDPOINT and self.AZURE_OPENAI_DEPLOYMENT)
     
     # File Storage
-    UPLOAD_DIR: str = "uploads"
+    UPLOAD_DIR: str = "./uploads"
+    TEMPLATE_DIR: str = "./templates"
+    PREVIEW_DIR: str = "./previews"
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
     
     # CORS
