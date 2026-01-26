@@ -226,7 +226,7 @@ export function DocumentUpload({ onNavigate }: DocumentUploadProps) {
             </p>
             <button
               onClick={handleFileInput}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              className="bg-[#175784] text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
             >
               Browse Files
             </button>
@@ -273,7 +273,7 @@ export function DocumentUpload({ onNavigate }: DocumentUploadProps) {
           </button>
           <button
             onClick={handleProceed}
-            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 bg-[#175784] text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={files.length === 0}
           >
             Proceed to Extraction

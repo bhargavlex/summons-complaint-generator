@@ -24,7 +24,7 @@ export function Navigation({ currentScreen, onNavigate }: NavigationProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-8">
             <div className="flex items-center gap-3">
-              <div className="bg-blue-600 p-2 rounded-lg">
+              <div className="bg-[#175784] p-2 rounded-lg">
                 <FileText className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -42,7 +42,7 @@ export function Navigation({ currentScreen, onNavigate }: NavigationProps) {
                     onClick={() => onNavigate(item.id)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-blue-50 text-blue-700 font-medium'
+                        ? 'bg-blue-50 text-[#175784] font-medium'
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >

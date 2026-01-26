@@ -54,7 +54,7 @@ export function ExtractedFieldsTable({ fields, updateField, onGeneratePreview, s
           {onGeneratePreview && (
             <button
               onClick={onGeneratePreview}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+              className="flex items-center gap-2 bg-[#175784] text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
             >
               <FileText className="w-4 h-4" />
               {showPreview ? 'Refresh Preview' : 'Generate Preview'}
@@ -62,7 +62,7 @@ export function ExtractedFieldsTable({ fields, updateField, onGeneratePreview, s
           )}
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded transition-colors"
+            className="flex items-center gap-2 text-sm text-[#175784] hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded transition-colors"
           >
             <Download className="w-4 h-4" />
             Export
@@ -135,7 +135,7 @@ export function ExtractedFieldsTable({ fields, updateField, onGeneratePreview, s
                   ) : (
                     <button
                       onClick={() => handleEdit(field)}
-                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      className="p-1.5 text-[#175784] hover:bg-blue-50 rounded transition-colors"
                       title="Edit"
                     >
                       <Edit2 className="w-4 h-4" />
