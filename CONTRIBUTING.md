@@ -1,99 +1,269 @@
+
+
 # Contributing to Lexvia Summons Generator
 
-Welcome to the team! To ensure we move fast without breaking things, we follow a strict **Feature Branch Workflow**. Please read this guide before pushing any code.
+Welcome to the team!
+To move fast **without breaking production**, we follow a strict and predictable **Feature Branch Workflow**. This guide documents the *only supported way* to contribute code.
 
-## 🌳 Branching Strategy
-
-We use two main long-lived branches:
-
-* **`main`**: 🔴 **DO NOT TOUCH.** This is the stable, production-ready code.
-* **`develop`**: 🟡 **Integration Branch.** All new features are merged here first.
-
-**Feature Branches:**
-All work must happen in short-lived feature branches created from `develop`.
-Naming convention: `feature/<task-name>` (e.g., `feature/login-auth`, `feature/doc-upload`).
+Please read this fully before pushing anything.
 
 ---
 
-## 🚀 The Daily Workflow
+## 🌳 Branching Strategy
 
-Follow this loop for every single task or ticket you work on.
+We maintain two long-lived branches:
 
-### 1. Start Fresh (Sync with Team)
+### 🔴 `main`
 
-Before starting new work, always make sure your local `develop` is up to date.
+* Production-ready code
+* **Never commit directly**
+* Only updated via Pull Request from `develop`
+
+### 🟡 `develop`
+
+* Integration branch
+* All features are merged here first
+
+---
+
+### 🌱 Feature Branches
+
+All work must happen in short-lived feature branches created from `develop`.
+
+**Naming convention**
+
+```
+feature/<short-description>
+```
+
+Examples:
+
+```
+feature/llm-extraction
+feature/doc-upload
+feature/auth-middleware
+```
+
+---
+
+## 🚀 Standard Daily Workflow
+
+### 1️⃣ Sync with the Team
+
+Always start with the latest `develop`.
 
 ```bash
 git checkout develop
 git pull origin develop
 ```
 
-### 2. Create Your Branch
+---
 
-Create a new branch for your specific task.
+### 2️⃣ Create a Feature Branch
 
 ```bash
-# Syntax: git checkout -b feature/<your-feature-name> develop
-git checkout -b feature/db-schema develop
+git checkout -b feature/your-feature-name develop
 ```
 
-### 3. Code & Commit
+---
 
-Work on your feature. Commit often with clear messages.
+### 3️⃣ Code & Commit Incrementally
+
+Commit small, logical changes with clear intent.
 
 ```bash
 git add .
-git commit -m "Added initial User model"
+git commit -m "Add extraction router"
 ```
 
-### 4. 🛡️ The "Anti-Conflict" Move (CRITICAL)
+✔ Good commits are easy to review
+❌ Large “everything at once” commits are not
 
-**Do this daily** or before you push. This pulls your team's latest work into your branch so you can fix conflicts *locally* before they break the server.
+---
+
+## 🛡️ Staying in Sync with `develop` (CRITICAL)
+
+You **must** regularly merge `develop` into your feature branch to avoid large conflicts later.
 
 ```bash
-# 1. Fetch latest changes from the server
 git fetch origin
-
-# 2. Merge develop into your current feature branch
 git merge origin/develop
 ```
 
-* **If Git says `Already up to date`**: You are good to go!
-* **If Git reports a `CONFLICT`**:
-  1. Open the files with conflicts.
-  2. Look for the `<<<<<<<` markers and decide which code to keep.
-  3. Save the files.
-  4. Run `git add .` and `git commit` to finish the fix.
+### Outcomes:
 
-### 5. Push Your Feature
+* **Already up to date** → ✅ continue working
+* **Conflicts** → resolve them **immediately**
 
-When you are ready for a review:
+#### Resolving conflicts:
+
+1. Open conflicted files
+2. Decide what to keep
+3. Remove `<<<<<<<` markers
+4. Save
+5. Finish the merge
 
 ```bash
-# The first time you push this branch
-git push -u origin feature/db-schema
+git add .
+git commit
+```
+
+📌 This commit should contain **only conflict resolution**, no feature logic.
+
+---
+
+## 🧳 Working with `git stash` (Real-World Scenario)
+
+Sometimes you have **uncommitted work** and need to merge `develop`.
+
+### ✅ Correct Stash Workflow
+
+```bash
+git stash
+git fetch origin
+git merge origin/develop
 ```
 
 ---
 
-## 🔀 Pull Requests (Merging to Develop)
+### 🔧 Resolve Merge Conflicts (If Any)
 
-**Never merge your own code locally.** We use Pull Requests (PRs) to ensure quality.
-
-1. Go to the repository on GitHub/GitLab.
-2. Click **"Compare & Pull Request"**.
-   * **Base:** `develop` ⬅️ **Compare:** `feature/your-branch`
-3. Add a Title and Description of what you changed.
-4. **Request a Review:** Tag at least one other team member.
-5. **Merge:** Once approved, click "Squash and Merge" or "Merge Commit".
-6. **Cleanup:** Delete your remote feature branch after merging.
+```bash
+git add .
+git commit    # conflict-resolution commit
+```
 
 ---
 
-## 📦 Releasing (Merging to Main)
+### 🔁 Re-apply Your Work
 
-Merging to `main` happens only when `develop` is stable and ready for a release.
+```bash
+git stash pop
+```
 
-1. Create a PR with **Base:** `main` ⬅️ **Compare:** `develop`.
-2. Ensure all CI/CD checks pass.
-3. Merge and Tag the release.
+⚠️ **Important:**
+Conflicts may happen *again*.
+This is **normal and expected**.
+
+**Why?**
+
+* The stash was created before `develop` was merged
+* Git is replaying old changes onto new code
+
+---
+
+### ✅ Handling Stash Conflicts
+
+1. Resolve conflicts manually
+2. Decide whether to keep:
+
+   * your feature changes
+   * new `develop` changes
+   * or both (most common)
+3. Stage and commit
+
+```bash
+git add .
+git commit -m "Integrate feature changes after develop update"
+```
+
+📌 **Rule of thumb**
+
+* Conflict-only fixes → neutral commit message
+* Feature logic → feature-focused commit message
+
+---
+
+## 📤 Pushing Your Feature
+
+```bash
+git push -u origin feature/your-feature-name
+```
+
+---
+
+## 🔀 Pull Requests (Feature → Develop)
+
+**Never merge into `develop` locally.**
+
+1. Open a Pull Request:
+
+   * **Base:** `develop`
+   * **Compare:** `feature/your-feature-name`
+2. Add a clear title and description
+3. Request at least one review
+4. Merge using:
+
+   * **Squash and Merge** (preferred)
+   * or **Merge Commit**
+
+---
+
+## 🚢 Releases (Develop → Main)
+
+Only when `develop` is stable:
+
+1. Create PR:
+
+   * **Base:** `main`
+   * **Compare:** `develop`
+2. Ensure CI passes
+3. Merge and tag the release
+
+---
+
+## 🚫 Common Mistakes (READ THIS)
+
+### ❌ Running `git merge origin/develop` twice
+
+* A merge pauses on conflicts
+* Resolve → `git add` → `git commit`
+* **Do not run merge again**
+
+---
+
+### ❌ Ignoring stash conflicts
+
+* Conflicts after `stash pop` are normal
+* Ignoring them = lost feature work
+* Always resolve + commit
+
+---
+
+### ❌ Mixing conflict resolution and feature logic in one commit
+
+* Makes reviews impossible
+* Makes rollbacks dangerous
+
+✔ Fix conflicts first
+✔ Commit feature work separately
+
+---
+
+### ❌ Committing directly to `develop` or `main`
+
+* This bypasses review
+* Breaks CI history
+* Makes hotfixes painful
+
+---
+
+### ❌ Vague commit messages
+
+Avoid:
+
+```
+"fix"
+"changes"
+"update"
+"conflicts"
+```
+
+Use:
+
+```
+"Add extraction endpoint"
+"Wire LLM service into pipeline"
+"Integrate feature with updated API structure"
+```
+
