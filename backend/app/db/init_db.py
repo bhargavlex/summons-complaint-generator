@@ -3,7 +3,9 @@ Database initialization script
 Creates all tables and seeds initial data for COHAN LAW + Premises
 """
 import sys
+import logging
 from pathlib import Path
+from typing import Tuple, Dict
 from sqlalchemy.orm import Session
 from app.db.base import Base, engine, SessionLocal
 from app.db.models import (
@@ -21,6 +23,65 @@ def create_tables():
     print("✓ Tables created successfully")
 
 
+def extract_fields_for_template(
+    db: Session,
+    template: Template,
+    extraction_service,
+    logger
+) -> Tuple[Dict, bool]:
+    """
+    Extract fields for a single template with error handling and rollback.
+    
+    Args:
+        db: Database session
+        template: Template model instance
+        extraction_service: FieldExtractionService instance
+        logger: Logger instance
+    
+    Returns:
+        Tuple of (results_dict, success: bool)
+        If success is False, any field changes have been rolled back.
+    """
+    from scripts.extract_template_fields import extract_and_store_template_fields
+    
+    # Use a savepoint to rollback only field extraction if it fails
+    savepoint = db.begin_nested()
+    try:
+        results = extract_and_store_template_fields(
+            db=db,
+            template=template,
+            extraction_service=extraction_service,
+            auto_commit=False  # We'll handle commit/rollback here
+        )
+        
+        # Check if extraction had errors
+        if results.get("errors"):
+            error_msg = f"Field extraction failed for template '{template.name}' (ID: {template.id})"
+            logger.error(error_msg)
+            for error in results["errors"]:
+                logger.error(f"  - {error}")
+            
+            # Rollback any fields that were added for this template
+            savepoint.rollback()
+            return results, False
+        else:
+            # Success - commit the savepoint (fields are now saved)
+            savepoint.commit()
+            return results, True
+            
+    except Exception as e:
+        # Rollback any partial field additions
+        savepoint.rollback()
+        error_msg = f"Unexpected error during field extraction for template '{template.name}' (ID: {template.id}): {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        results = {
+            "template_id": template.id,
+            "template_name": template.name,
+            "errors": [str(e)]
+        }
+        return results, False
+
+
 def seed_data(db: Session):
     """Seed initial data: law firms, case types, templates, and fields"""
     
@@ -29,256 +90,229 @@ def seed_data(db: Session):
     # ============================================
     print("\nSeeding law firms...")
     
-    firm1 = LawFirm(name="COHAN LAW, PLLC", code="COHAN")
-    firm2 = LawFirm(name="Smith & Associates", code="SMITH")
+    # Check if firms already exist
+    firm1 = db.query(LawFirm).filter(LawFirm.code == "COHAN").first()
+    if not firm1:
+        firm1 = LawFirm(name="COHAN LAW, PLLC", code="COHAN")
+        db.add(firm1)
+        db.flush()
+        print(f"✓ Created firm: {firm1.name} (ID: {firm1.id})")
+    else:
+        print(f"✓ Firm already exists: {firm1.name} (ID: {firm1.id})")
     
-    db.add(firm1)
-    db.add(firm2)
-    db.flush()  # Get IDs
+    firm2 = db.query(LawFirm).filter(LawFirm.code == "SMITH").first()
+    if not firm2:
+        firm2 = LawFirm(name="Smith & Associates", code="SMITH")
+        db.add(firm2)
+        db.flush()
+        print(f"✓ Created firm: {firm2.name} (ID: {firm2.id})")
+    else:
+        print(f"✓ Firm already exists: {firm2.name} (ID: {firm2.id})")
     
-    print(f"✓ Created firm: {firm1.name} (ID: {firm1.id})")
-    print(f"✓ Created firm: {firm2.name} (ID: {firm2.id})")
+    db.flush()  # Ensure IDs are available
     
     # ============================================
     # 2. CASE TYPES
     # ============================================
     print("\nSeeding case types...")
     
-    case_type1 = CaseType(
-        name="Premises Liability", 
-        code="PREMISES", 
-        description="Slip and fall, premises accidents"
-    )
-    case_type2 = CaseType(
-        name="Personal Injury", 
-        code="PI", 
-        description="General personal injury cases"
-    )
-    case_type3 = CaseType(
-        name="Medical Malpractice", 
-        code="MED_MAL", 
-        description="Medical malpractice cases"
-    )
+    # Check if case types already exist
+    case_type1 = db.query(CaseType).filter(CaseType.code == "PREMISES").first()
+    if not case_type1:
+        case_type1 = CaseType(
+            name="Premises Liability", 
+            code="PREMISES", 
+            description="Slip and fall, premises accidents"
+        )
+        db.add(case_type1)
+        db.flush()
+        print(f"✓ Created case type: {case_type1.name} (ID: {case_type1.id})")
+    else:
+        print(f"✓ Case type already exists: {case_type1.name} (ID: {case_type1.id})")
     
-    db.add(case_type1)
-    db.add(case_type2)
-    db.add(case_type3)
-    db.flush()
+    case_type2 = db.query(CaseType).filter(CaseType.code == "PI").first()
+    if not case_type2:
+        case_type2 = CaseType(
+            name="Personal Injury", 
+            code="PI", 
+            description="General personal injury cases"
+        )
+        db.add(case_type2)
+        db.flush()
+        print(f"✓ Created case type: {case_type2.name} (ID: {case_type2.id})")
+    else:
+        print(f"✓ Case type already exists: {case_type2.name} (ID: {case_type2.id})")
     
-    print(f"✓ Created case type: {case_type1.name} (ID: {case_type1.id})")
-    print(f"✓ Created case type: {case_type2.name} (ID: {case_type2.id})")
-    print(f"✓ Created case type: {case_type3.name} (ID: {case_type3.id})")
+    case_type3 = db.query(CaseType).filter(CaseType.code == "MED_MAL").first()
+    if not case_type3:
+        case_type3 = CaseType(
+            name="Medical Malpractice", 
+            code="MED_MAL", 
+            description="Medical malpractice cases"
+        )
+        db.add(case_type3)
+        db.flush()
+        print(f"✓ Created case type: {case_type3.name} (ID: {case_type3.id})")
+    else:
+        print(f"✓ Case type already exists: {case_type3.name} (ID: {case_type3.id})")
     
-    # ============================================
-    # 3. TEMPLATE (Premises Liability for COHAN LAW)
-    # ============================================
-    print("\nSeeding template...")
-    
-    # Template file path (user needs to upload this)
-    template_path = "templates/cohan/premises/summons_complaint.docx"
-    
-    template = Template(
-        law_firm_id=firm1.id,
-        case_type_id=case_type1.id,
-        name="Premises Liability - Summons & Complaint",
-        file_path=template_path,
-        version=1
-    )
-    
-    db.add(template)
-    db.flush()
-    
-    print(f"✓ Created template: {template.name} (ID: {template.id})")
-    print(f"  Template path: {template_path}")
-    print(f"  ⚠️  Make sure the template file exists at this path!")
+    db.flush()  # Ensure IDs are available
     
     # ============================================
-    # 4. TEMPLATE FIELDS (All 20 placeholders from PDF)
+    # 3. TEMPLATES
     # ============================================
-    print("\nSeeding template fields...")
+    print("\nSeeding templates...")
     
-    fields_data = [
+    templates_data = [
         {
-            "field_key": "case_county",
-            "placeholder": "«Case_County»",
-            "display_name": "Case County",
-            "description": "County where case is filed",
-            "expected_format": "County Name",
-            "field_order": 1,
+            "law_firm_id": firm1.id,
+            "case_type_id": case_type1.id,
+            "name": "Premises Liability - 1 Plt. and 1 Deft.",
+            "file_path": "templates/Premises - 1 plt. and 1deft_.docx",
+            "version": 1
         },
         {
-            "field_key": "plaintiff_name",
-            "placeholder": "«Plaintiff_name_»",
-            "display_name": "Plaintiff Name",
-            "description": "Full legal name of the plaintiff",
-            "expected_format": "Full Name",
-            "field_order": 2,
+            "law_firm_id": firm1.id,
+            "case_type_id": case_type2.id,
+            "name": "MVA - 1 Plt. and 1 Deft.",
+            "file_path": "templates/MVA - 1 plt. and 1 deft_.docx",
+            "version": 1
         },
         {
-            "field_key": "defendant_name",
-            "placeholder": "«Defendant_name»",
-            "display_name": "Defendant Name",
-            "description": "Full legal name of the defendant",
-            "expected_format": "Full Name",
-            "field_order": 3,
-        },
-        {
-            "field_key": "venue_bases_on",
-            "placeholder": "«Venue_bases_on»",
-            "display_name": "Venue Basis",
-            "description": "Basis for venue selection",
-            "expected_format": "Text",
-            "field_order": 4,
-        },
-        {
-            "field_key": "venue_street_address",
-            "placeholder": "«Venue_Street_Address_»",
-            "display_name": "Venue Street Address",
-            "description": "Street address for venue",
-            "expected_format": "Street Address",
-            "field_order": 5,
-        },
-        {
-            "field_key": "venue_county_state",
-            "placeholder": "«Venue_County_State»",
-            "display_name": "Venue County and State",
-            "description": "County and state for venue",
-            "expected_format": "County, State",
-            "field_order": 6,
-        },
-        {
-            "field_key": "current_month_year",
-            "placeholder": "«Current_Month_Year»",
-            "display_name": "Current Month/Year",
-            "description": "Current month and year for document dating",
-            "expected_format": "Month Year (e.g., January 2024)",
-            "field_order": 7,
-        },
-        {
-            "field_key": "defendant_street_address",
-            "placeholder": "«Defendant_Street_Address_»",
-            "display_name": "Defendant Street Address",
-            "description": "Street address of the defendant",
-            "expected_format": "Street Address",
-            "field_order": 8,
-        },
-        {
-            "field_key": "defendant_city",
-            "placeholder": "«Defendant_City»",
-            "display_name": "Defendant City",
-            "description": "City where defendant is located",
-            "expected_format": "City Name",
-            "field_order": 9,
-        },
-        {
-            "field_key": "defendant_state",
-            "placeholder": "«Defendant_State»",
-            "display_name": "Defendant State",
-            "description": "State where defendant is located",
-            "expected_format": "State Name or Abbreviation",
-            "field_order": 10,
-        },
-        {
-            "field_key": "defendant_zip_code",
-            "placeholder": "«Defendant_Zip_code»",
-            "display_name": "Defendant ZIP Code",
-            "description": "ZIP code of the defendant",
-            "expected_format": "ZIP Code (5 or 9 digits)",
-            "field_order": 11,
-        },
-        {
-            "field_key": "defendant_county",
-            "placeholder": "«Defendant_County»",
-            "display_name": "Defendant County",
-            "description": "County where defendant is located",
-            "expected_format": "County Name",
-            "field_order": 12,
-        },
-        {
-            "field_key": "plaintiff_county",
-            "placeholder": "«Plaintiff_County_»",
-            "display_name": "Plaintiff County",
-            "description": "County where plaintiff resides",
-            "expected_format": "County Name",
-            "field_order": 13,
-        },
-        {
-            "field_key": "plaintiff_state",
-            "placeholder": "«Plaintiff_State_»",
-            "display_name": "Plaintiff State",
-            "description": "State where plaintiff resides",
-            "expected_format": "State Name or Abbreviation",
-            "field_order": 14,
-        },
-        {
-            "field_key": "date_of_accident",
-            "placeholder": "«Date_of_accident»",
-            "display_name": "Date of Accident",
-            "description": "Date when the incident occurred",
-            "expected_format": "MM/DD/YYYY",
-            "field_order": 15,
-        },
-        {
-            "field_key": "loa",
-            "placeholder": "«LOA»",
-            "display_name": "LOA (Location of Accident)",
-            "description": "Location of accident or premises identifier",
-            "expected_format": "Address or Location Identifier",
-            "field_order": 16,
-        },
-        {
-            "field_key": "loa_county",
-            "placeholder": "«LOA_County»",
-            "display_name": "LOA County",
-            "description": "County where accident occurred",
-            "expected_format": "County Name",
-            "field_order": 17,
-        },
-        {
-            "field_key": "loa_state",
-            "placeholder": "«LOA_State»",
-            "display_name": "LOA State",
-            "description": "State where accident occurred",
-            "expected_format": "State Name or Abbreviation",
-            "field_order": 18,
-        },
-        {
-            "field_key": "hisher",
-            "placeholder": "«hisher»",
-            "display_name": "His/Her",
-            "description": "Pronoun: his or her (based on plaintiff gender)",
-            "expected_format": "his or her",
-            "field_order": 19,
-        },
-        {
-            "field_key": "heshe",
-            "placeholder": "«heshe»",
-            "display_name": "He/She",
-            "description": "Pronoun: he or she (based on plaintiff gender)",
-            "expected_format": "he or she",
-            "field_order": 20,
-        },
+            "law_firm_id": firm1.id,
+            "case_type_id": case_type3.id,
+            "name": "Medical Malpractice - 1 Plt. and 1 Deft.",
+            "file_path": "templates/Medical Malpractice - 1 plt. and 1 deft_.docx",
+            "version": 1
+        }
     ]
     
-    for field_data in fields_data:
-        field = TemplateField(
-            template_id=template.id,
-            **field_data
+    # ============================================
+    # 4. CREATE TEMPLATES WITH AUTO FIELD EXTRACTION
+    # ============================================
+    print("\nCreating/updating templates with automatic field extraction...")
+    
+    from app.services.template_service import create_template_with_auto_extraction
+    
+    templates = []
+    total_fields = 0
+    extraction_errors = []
+    skipped_templates = []
+    
+    for t_data in templates_data:
+        # Check if template already exists (by unique constraint: law_firm_id, case_type_id, version)
+        existing_template = db.query(Template).filter(
+            Template.law_firm_id == t_data["law_firm_id"],
+            Template.case_type_id == t_data["case_type_id"],
+            Template.version == t_data["version"]
+        ).first()
+        
+        if existing_template:
+            print(f"\n  Template already exists: {existing_template.name} (ID: {existing_template.id})")
+            
+            # Update file_path if it changed (e.g., .doc to .docx conversion)
+            if existing_template.file_path != t_data["file_path"]:
+                print(f"    Updating file path: {existing_template.file_path} -> {t_data['file_path']}")
+                existing_template.file_path = t_data["file_path"]
+                db.commit()
+            
+            # Check if template has fields - if not, try to extract them
+            field_count = db.query(TemplateField).filter(
+                TemplateField.template_id == existing_template.id
+            ).count()
+            
+            if field_count == 0 and t_data["file_path"].endswith('.docx'):
+                print(f"    Template has 0 fields - attempting automatic extraction...")
+                from app.services.field_extraction import FieldExtractionService
+                from scripts.extract_template_fields import extract_and_store_template_fields
+                
+                extraction_service = FieldExtractionService(db)
+                results = extract_and_store_template_fields(
+                    db=db,
+                    template=existing_template,
+                    extraction_service=extraction_service,
+                    auto_commit=True
+                )
+                
+                if results.get("errors"):
+                    print(f"    ❌ Extraction failed: {results['errors'][0]}")
+                    extraction_errors.append({
+                        "template_id": existing_template.id,
+                        "template_name": existing_template.name,
+                        "errors": results.get("errors", ["Unknown error"])
+                    })
+                else:
+                    fields_count = len(results.get("created_fields", [])) + len(results.get("existing_fields", []))
+                    total_fields += fields_count
+                    print(f"    ✓ Automatically extracted and inserted {fields_count} fields")
+            else:
+                print(f"    Skipping (already has {field_count} fields or not .docx)")
+            
+            templates.append(existing_template)
+            skipped_templates.append(existing_template)
+            continue
+        
+        # Template doesn't exist - create it with auto-extraction
+        template = Template(**t_data)
+        print(f"\n  Creating new template: {template.name}...")
+        
+        # Create template and automatically extract fields
+        created_template, extraction_results, extraction_success = create_template_with_auto_extraction(
+            db=db,
+            template=template,
+            auto_extract=True
         )
-        db.add(field)
+        
+        templates.append(created_template)
+        print(f"  ✓ Created template: {created_template.name} (ID: {created_template.id})")
+        print(f"    Path: {created_template.file_path}")
+        
+        if extraction_results is not None:
+            if extraction_success:
+                fields_count = len(extraction_results.get("created_fields", [])) + len(extraction_results.get("existing_fields", []))
+                total_fields += fields_count
+                print(f"  ✓ Automatically extracted and inserted {fields_count} fields into database")
+            else:
+                extraction_errors.append({
+                    "template_id": created_template.id,
+                    "template_name": created_template.name,
+                    "errors": extraction_results.get("errors", ["Unknown error"])
+                })
+                print(f"  ❌ Automatic extraction failed - template saved, fields rolled back")
+        else:
+            if not template.file_path.endswith('.docx'):
+                print(f"  ⚠️  Skipped extraction: Only .docx supported")
+            else:
+                print(f"  ⚠️  Skipped extraction: File not found")
     
-    db.commit()
+    created_count = len(templates) - len(skipped_templates)
+    print(f"\n✓ Processed {len(templates)} templates ({created_count} new, {len(skipped_templates)} already existed)")
+    print(f"✓ Extracted and inserted {total_fields} template fields automatically")
     
-    print(f"✓ Created {len(fields_data)} template fields")
+    # Report any extraction errors
+    if extraction_errors:
+        print(f"\n⚠️  WARNING: Field extraction failed for {len(extraction_errors)} template(s):")
+        for error_info in extraction_errors:
+            print(f"  - Template '{error_info['template_name']}' (ID: {error_info['template_id']})")
+            for err in error_info['errors']:
+                print(f"    Error: {err}")
+        print(f"\n  Templates were created but field extraction must be run manually.")
+        if extraction_errors:
+            print(f"  Run: python -m scripts.extract_template_fields {extraction_errors[0]['template_id']}")
     print("\n✅ Database initialization complete!")
+    
+    # Get total field count from database (not just newly extracted)
+    total_fields_in_db = db.query(TemplateField).count()
+    
     print(f"\nSummary:")
     print(f"  - Law Firms: 2")
     print(f"  - Case Types: 3")
-    print(f"  - Templates: 1 (Premises Liability for COHAN LAW)")
-    print(f"  - Template Fields: {len(fields_data)}")
+    print(f"  - Templates: {len(templates)}")
+    print(f"  - Template Fields (total in DB): {total_fields_in_db}")
+    if total_fields > 0:
+        print(f"  - Template Fields (newly extracted this run): {total_fields}")
     print(f"\n⚠️  Next Steps:")
-    print(f"  1. Upload template file to: {template_path}")
-    print(f"  2. Create the directory structure if it doesn't exist")
+    print(f"  1. Review app/db/field_definitions.py to update field metadata")
 
 
 def init_db():
@@ -288,13 +322,7 @@ def init_db():
         
         db = SessionLocal()
         try:
-            # Check if data already exists
-            existing_firm = db.query(LawFirm).first()
-            if existing_firm:
-                print("\n⚠️  Database already seeded. Skipping seed data.")
-                print("   To reset, drop and recreate the database.")
-                return
-            
+            # Always run seed_data - it will skip existing records and add new ones
             seed_data(db)
         finally:
             db.close()
