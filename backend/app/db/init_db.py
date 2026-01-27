@@ -300,11 +300,17 @@ def seed_data(db: Session):
         if extraction_errors:
             print(f"  Run: python -m scripts.extract_template_fields {extraction_errors[0]['template_id']}")
     print("\n✅ Database initialization complete!")
+    
+    # Get total field count from database (not just newly extracted)
+    total_fields_in_db = db.query(TemplateField).count()
+    
     print(f"\nSummary:")
     print(f"  - Law Firms: 2")
     print(f"  - Case Types: 3")
     print(f"  - Templates: {len(templates)}")
-    print(f"  - Template Fields: {total_fields}")
+    print(f"  - Template Fields (total in DB): {total_fields_in_db}")
+    if total_fields > 0:
+        print(f"  - Template Fields (newly extracted this run): {total_fields}")
     print(f"\n⚠️  Next Steps:")
     print(f"  1. Review app/db/field_definitions.py to update field metadata")
 
