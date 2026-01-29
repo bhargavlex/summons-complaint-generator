@@ -1,4 +1,12 @@
 """
+Services module for business logic.
+"""
+
+from .llm_engine import LLMEngine, ExtractionState, ExtractedField
+
+__all__ = ["LLMEngine", "ExtractionState", "ExtractedField"]
+
+"""
 Services module
 """
 from app.services.field_extraction import FieldExtractionService
