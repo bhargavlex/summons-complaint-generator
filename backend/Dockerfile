@@ -27,21 +27,20 @@ COPY --chown=appuser:appuser requirements.txt .
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
+# Copy application code and entrypoint (chmod while still root)
+COPY --chown=appuser:appuser . .
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Switch to non-root user
 USER appuser
-
-# Copy application code
-COPY --chown=appuser:appuser . .
 
 # Expose port
 EXPOSE 8000
 
 # Container-level health check - checks if FastAPI server is responding
-# This allows Docker to mark the container as healthy/unhealthy
-# Works with or without a /health endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD python -c "import socket; s=socket.socket(); s.settimeout(2); result=s.connect_ex(('localhost', 8000)); s.close(); exit(0) if result == 0 else exit(1)" || exit 1
 
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 # Run the application
-# Use --reload only for development. For production, remove --reload and add --workers 4
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

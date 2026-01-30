@@ -8,6 +8,8 @@ from app.db.models.template_field import TemplateField
 from app.db.models.session import Session, SessionStatus
 from app.db.models.document import Document
 from app.db.models.field_value import FieldValue, FieldValueStatus
+from app.db.models.plaintiff import Plaintiff
+from app.db.models.defendant import Defendant
 
 __all__ = [
     "LawFirm",
@@ -19,4 +21,6 @@ __all__ = [
     "Document",
     "FieldValue",
     "FieldValueStatus",
+    "Plaintiff",
+    "Defendant",
 ]

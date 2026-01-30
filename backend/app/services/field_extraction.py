@@ -16,6 +16,7 @@ from app.db.models import (
     FieldValue,
     FieldValueStatus,
 )
+from app.services.party_sync import sync_parties_from_field_values
 
 logger = logging.getLogger(__name__)
 
@@ -218,6 +219,11 @@ class FieldExtractionService:
             f"Stored {len(field_values)} field values for session {session.id}, "
             f"document {document.id}"
         )
+        # Sync plaintiff/defendant from field_values when LLM or user later fills them
+        try:
+            sync_parties_from_field_values(session, self.db)
+        except Exception as e:
+            logger.warning("Failed to sync parties from field values: %s", e)
         
         return field_values
     

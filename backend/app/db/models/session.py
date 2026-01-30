@@ -33,3 +33,5 @@ class Session(Base):
     template = relationship("Template", back_populates="sessions")
     documents = relationship("Document", back_populates="session", cascade="all, delete-orphan")
     field_values = relationship("FieldValue", back_populates="session", cascade="all, delete-orphan")
+    plaintiffs = relationship("Plaintiff", back_populates="session", cascade="all, delete-orphan")
+    defendants = relationship("Defendant", back_populates="session", cascade="all, delete-orphan")

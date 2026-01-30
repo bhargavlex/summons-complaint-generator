@@ -20,7 +20,7 @@ def create_tables():
     """Create all database tables"""
     print("Creating database tables...")
     Base.metadata.create_all(bind=engine)
-    print("✓ Tables created successfully")
+    print("[OK] Tables created successfully")
 
 
 def extract_fields_for_template(
@@ -96,18 +96,18 @@ def seed_data(db: Session):
         firm1 = LawFirm(name="COHAN LAW, PLLC", code="COHAN")
         db.add(firm1)
         db.flush()
-        print(f"✓ Created firm: {firm1.name} (ID: {firm1.id})")
+        print(f"[OK] Created firm: {firm1.name} (ID: {firm1.id})")
     else:
-        print(f"✓ Firm already exists: {firm1.name} (ID: {firm1.id})")
+        print(f"[OK] Firm already exists: {firm1.name} (ID: {firm1.id})")
     
     firm2 = db.query(LawFirm).filter(LawFirm.code == "SMITH").first()
     if not firm2:
         firm2 = LawFirm(name="Smith & Associates", code="SMITH")
         db.add(firm2)
         db.flush()
-        print(f"✓ Created firm: {firm2.name} (ID: {firm2.id})")
+        print(f"[OK] Created firm: {firm2.name} (ID: {firm2.id})")
     else:
-        print(f"✓ Firm already exists: {firm2.name} (ID: {firm2.id})")
+        print(f"[OK] Firm already exists: {firm2.name} (ID: {firm2.id})")
     
     db.flush()  # Ensure IDs are available
     
@@ -126,9 +126,9 @@ def seed_data(db: Session):
         )
         db.add(case_type1)
         db.flush()
-        print(f"✓ Created case type: {case_type1.name} (ID: {case_type1.id})")
+        print(f"[OK] Created case type: {case_type1.name} (ID: {case_type1.id})")
     else:
-        print(f"✓ Case type already exists: {case_type1.name} (ID: {case_type1.id})")
+        print(f"[OK] Case type already exists: {case_type1.name} (ID: {case_type1.id})")
     
     case_type2 = db.query(CaseType).filter(CaseType.code == "PI").first()
     if not case_type2:
@@ -139,9 +139,9 @@ def seed_data(db: Session):
         )
         db.add(case_type2)
         db.flush()
-        print(f"✓ Created case type: {case_type2.name} (ID: {case_type2.id})")
+        print(f"[OK] Created case type: {case_type2.name} (ID: {case_type2.id})")
     else:
-        print(f"✓ Case type already exists: {case_type2.name} (ID: {case_type2.id})")
+        print(f"[OK] Case type already exists: {case_type2.name} (ID: {case_type2.id})")
     
     case_type3 = db.query(CaseType).filter(CaseType.code == "MED_MAL").first()
     if not case_type3:
@@ -152,9 +152,9 @@ def seed_data(db: Session):
         )
         db.add(case_type3)
         db.flush()
-        print(f"✓ Created case type: {case_type3.name} (ID: {case_type3.id})")
+        print(f"[OK] Created case type: {case_type3.name} (ID: {case_type3.id})")
     else:
-        print(f"✓ Case type already exists: {case_type3.name} (ID: {case_type3.id})")
+        print(f"[OK] Case type already exists: {case_type3.name} (ID: {case_type3.id})")
     
     db.flush()  # Ensure IDs are available
     
@@ -235,7 +235,7 @@ def seed_data(db: Session):
                 )
                 
                 if results.get("errors"):
-                    print(f"    ❌ Extraction failed: {results['errors'][0]}")
+                    print(f"    [X] Extraction failed: {results['errors'][0]}")
                     extraction_errors.append({
                         "template_id": existing_template.id,
                         "template_name": existing_template.name,
@@ -244,7 +244,7 @@ def seed_data(db: Session):
                 else:
                     fields_count = len(results.get("created_fields", [])) + len(results.get("existing_fields", []))
                     total_fields += fields_count
-                    print(f"    ✓ Automatically extracted and inserted {fields_count} fields")
+                    print(f"    [OK] Automatically extracted and inserted {fields_count} fields")
             else:
                 print(f"    Skipping (already has {field_count} fields or not .docx)")
             
@@ -264,34 +264,34 @@ def seed_data(db: Session):
         )
         
         templates.append(created_template)
-        print(f"  ✓ Created template: {created_template.name} (ID: {created_template.id})")
+        print(f"  [OK] Created template: {created_template.name} (ID: {created_template.id})")
         print(f"    Path: {created_template.file_path}")
         
         if extraction_results is not None:
             if extraction_success:
                 fields_count = len(extraction_results.get("created_fields", [])) + len(extraction_results.get("existing_fields", []))
                 total_fields += fields_count
-                print(f"  ✓ Automatically extracted and inserted {fields_count} fields into database")
+                print(f"  [OK] Automatically extracted and inserted {fields_count} fields into database")
             else:
                 extraction_errors.append({
                     "template_id": created_template.id,
                     "template_name": created_template.name,
                     "errors": extraction_results.get("errors", ["Unknown error"])
                 })
-                print(f"  ❌ Automatic extraction failed - template saved, fields rolled back")
+                print(f"  [X] Automatic extraction failed - template saved, fields rolled back")
         else:
             if not template.file_path.endswith('.docx'):
-                print(f"  ⚠️  Skipped extraction: Only .docx supported")
+                print(f"  [!]  Skipped extraction: Only .docx supported")
             else:
-                print(f"  ⚠️  Skipped extraction: File not found")
+                print(f"  [!]  Skipped extraction: File not found")
     
     created_count = len(templates) - len(skipped_templates)
-    print(f"\n✓ Processed {len(templates)} templates ({created_count} new, {len(skipped_templates)} already existed)")
-    print(f"✓ Extracted and inserted {total_fields} template fields automatically")
+    print(f"\n[OK] Processed {len(templates)} templates ({created_count} new, {len(skipped_templates)} already existed)")
+    print(f"[OK] Extracted and inserted {total_fields} template fields automatically")
     
     # Report any extraction errors
     if extraction_errors:
-        print(f"\n⚠️  WARNING: Field extraction failed for {len(extraction_errors)} template(s):")
+        print(f"\n[!]  WARNING: Field extraction failed for {len(extraction_errors)} template(s):")
         for error_info in extraction_errors:
             print(f"  - Template '{error_info['template_name']}' (ID: {error_info['template_id']})")
             for err in error_info['errors']:
@@ -311,7 +311,7 @@ def seed_data(db: Session):
     print(f"  - Template Fields (total in DB): {total_fields_in_db}")
     if total_fields > 0:
         print(f"  - Template Fields (newly extracted this run): {total_fields}")
-    print(f"\n⚠️  Next Steps:")
+    print(f"\n[!]  Next Steps:")
     print(f"  1. Review app/db/field_definitions.py to update field metadata")
 
 
@@ -328,7 +328,7 @@ def init_db():
             db.close()
             
     except Exception as e:
-        print(f"\n❌ Error initializing database: {e}")
+        print(f"\n[X] Error initializing database: {e}")
         import traceback
         traceback.print_exc()
         raise
