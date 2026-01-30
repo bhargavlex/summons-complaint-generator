@@ -78,6 +78,28 @@ services:
       - ./backend:/app
       - /app/__pycache__
 
+##  frontend:
+   # build:
+    #  context: ./frontend
+    #  dockerfile: Dockerfile
+   # container_name: frontend_server
+    #restart: unless-stopped
+    #ports:
+      #- "3000:80"
+    # Frontend depends on backend being healthy
+   # depends_on:
+     # backend:
+     #   condition: service_healthy
+    #networks:
+      #- app-network
+    # Healthcheck for frontend
+   # healthcheck:
+     # test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+     # interval: 30s
+     # timeout: 10s
+     # retries: 3
+     # start_period: 10s
+
 networks:
   app-network:
     driver: bridge

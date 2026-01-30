@@ -13,7 +13,11 @@ from app.db.models import (
     CaseType,
     Template,
     TemplateField,
+    Session as SessionModel,
+    FieldValue,
 )
+from app.db.models.session import SessionStatus
+from app.db.models.field_value import FieldValueStatus
 
 
 def create_tables():
@@ -299,6 +303,61 @@ def seed_data(db: Session):
         print(f"\n  Templates were created but field extraction must be run manually.")
         if extraction_errors:
             print(f"  Run: python -m scripts.extract_template_fields {extraction_errors[0]['template_id']}")
+
+    # ============================================
+    # 5. TEST SESSION (for frontend development)
+    # ============================================
+    print("\nSeeding test session (if none exist)...")
+    import uuid as uuid_mod
+    existing_session = db.query(SessionModel).first()
+    if not existing_session and templates:
+        template = templates[0]
+        session_uuid = str(uuid_mod.uuid4())
+        test_session = SessionModel(
+            uuid=session_uuid,
+            template_id=template.id,
+            status=SessionStatus.CREATED,
+        )
+        db.add(test_session)
+        db.flush()
+        sample_values = {
+            "case_county": "New York County",
+            "plaintiff_name": "John Doe",
+            "plaintiff_street_address": "123 Main Street",
+            "plaintiff_city": "New York",
+            "plaintiff_state": "NY",
+            "plaintiff_zip_code": "10001",
+            "plaintiff_county": "New York County",
+            "defendant_name": "ABC Corporation",
+            "defendant_street_address": "456 Business Ave",
+            "defendant_city": "New York",
+            "defendant_state": "NY",
+            "defendant_zip_code": "10002",
+            "defendant_county": "New York County",
+            "venue_street_address": "789 Court Street",
+            "venue_city": "New York",
+            "venue_state": "NY",
+            "venue_zip_code": "10003",
+            "start_date_service": "2024-01-15",
+            "end_date_service": "2024-01-20",
+            "current_month_year": "January 2024",
+        }
+        template_fields = db.query(TemplateField).filter(TemplateField.template_id == template.id).all()
+        for tf in template_fields:
+            value = sample_values.get(tf.field_key) or f"Sample {tf.display_name}"
+            fv = FieldValue(
+                session_id=test_session.id,
+                template_field_id=tf.id,
+                extracted_value=value,
+                is_missing=False,
+                status=FieldValueStatus.EXTRACTED,
+            )
+            db.add(fv)
+        db.commit()
+        print(f"✓ Created test session: {session_uuid} with {len(template_fields)} field values")
+    else:
+        print(f"✓ Test session already exists or no templates; skipping")
+
     print("\n✅ Database initialization complete!")
     
     # Get total field count from database (not just newly extracted)

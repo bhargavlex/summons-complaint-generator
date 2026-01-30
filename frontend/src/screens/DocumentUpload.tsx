@@ -1,9 +1,12 @@
-import { useState, useRef } from 'react';
-import { Upload, FileText, X, ChevronRight } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Upload, FileText, X, ChevronRight, Loader2 } from 'lucide-react';
 import { Screen } from '../App';
+import { apiClient } from '../api/client';
+import type { FirmResponse, CaseTypeResponse } from '../api/client';
 
 interface DocumentUploadProps {
   onNavigate: (screen: Screen) => void;
+  onSessionCreated: (sessionUuid: string) => void;
 }
 
 interface UploadedFile {
@@ -33,12 +36,42 @@ function getFileType(mimeType: string): string {
   return 'Unknown';
 }
 
-export function DocumentUpload({ onNavigate }: DocumentUploadProps) {
+export function DocumentUpload({ onNavigate, onSessionCreated }: DocumentUploadProps) {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [selectedFirm, setSelectedFirm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [firms, setFirms] = useState<FirmResponse[]>([]);
+  const [caseTypes, setCaseTypes] = useState<CaseTypeResponse[]>([]);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [configError, setConfigError] = useState<string | null>(null);
+  const [proceedLoading, setProceedLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const loadConfig = async () => {
+      setConfigLoading(true);
+      setConfigError(null);
+      try {
+        const [firmsRes, typesRes] = await Promise.all([
+          apiClient.getFirms(),
+          apiClient.getCaseTypes(),
+        ]);
+        setFirms(firmsRes);
+        setCaseTypes(typesRes);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to load firms and case types';
+        setConfigError(
+          msg.includes('404') || msg.toLowerCase().includes('not found')
+            ? 'Firms/case types not found. Ensure the backend is running (e.g. http://localhost:8000) and the database is seeded (run init_db).'
+            : msg
+        );
+      } finally {
+        setConfigLoading(false);
+      }
+    };
+    loadConfig();
+  }, []);
 
   const validateFile = (file: File): string | null => {
     if (file.size > MAX_FILE_SIZE) {
@@ -117,11 +150,7 @@ export function DocumentUpload({ onNavigate }: DocumentUploadProps) {
     setFiles(files.filter(f => f.id !== id));
   };
 
-  const handleProceed = () => {
-    if (files.length === 0) {
-      alert('Please upload at least one document');
-      return;
-    }
+  const handleProceed = async () => {
     if (!selectedFirm) {
       alert('Please select a firm');
       return;
@@ -130,9 +159,28 @@ export function DocumentUpload({ onNavigate }: DocumentUploadProps) {
       alert('Please select a case category');
       return;
     }
-    // TODO: Upload files to backend API here
-    // For now, just navigate to the next screen
-    onNavigate('extraction');
+    setProceedLoading(true);
+    try {
+      // Normalize codes to match backend (uppercase, case type: replace - and space with _)
+      const law_firm_code = String(selectedFirm).trim().toUpperCase();
+      const case_type_code = String(selectedCategory).trim().toUpperCase().replace(/-/g, '_').replace(/\s+/g, '_');
+      const { uuid: sessionUuid } = await apiClient.createSession({
+        law_firm_code,
+        case_type_code,
+      });
+      if (files.length > 0) {
+        for (const f of files) {
+          await apiClient.uploadDocument(sessionUuid, f.file);
+        }
+      }
+      onSessionCreated(sessionUuid);
+      onNavigate('extraction');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to create session or upload documents';
+      alert(msg);
+    } finally {
+      setProceedLoading(false);
+    }
   };
 
   return (
@@ -146,50 +194,66 @@ export function DocumentUpload({ onNavigate }: DocumentUploadProps) {
         {/* Firm Selection */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 p-6">
           <h3 className="font-semibold text-gray-900 mb-4">Choose Firm</h3>
-          <select
-            value={selectedFirm}
-            onChange={(e) => setSelectedFirm(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Select a firm...</option>
-            <option value="cohan-law">Cohan Law PLLC</option>
-            <option value="raphaelson-Levine">Raphaelson & Levine Law Firm, P.C.</option>
-          </select>
+          {configLoading ? (
+            <div className="flex items-center gap-2 text-gray-600">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading firms...
+            </div>
+          ) : configError ? (
+            <p className="text-red-600 text-sm">{configError}</p>
+          ) : (
+            <select
+              value={selectedFirm}
+              onChange={(e) => setSelectedFirm(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select a firm...</option>
+              {firms.map((f) => (
+                <option key={f.id} value={f.code}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Case Category Selection */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 p-6">
           <h3 className="font-semibold text-gray-900 mb-4">Choose Case Category</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              { id: 'premises', name: 'Premises', desc: 'Injury claims occurring on another\'s property' },
-              { id: 'mva', name: 'Motor Vehicle Accident', desc: 'Personal injury or property damage from vehicle collisions' },
-              { id: 'med-mal', name: 'Medical Malpractice', desc: 'Claims involving professional negligence by healthcare providers' },
-              { id: 'other', name: 'Other', desc: 'General or miscellaneous legal matters' },
-            ].map((category) => (
-              <label
-                key={category.id}
-                className={`flex items-start p-4 border-2 rounded-lg cursor-pointer transition-colors ${
-                  selectedCategory === category.id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-blue-300'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="caseCategory"
-                  value={category.id}
-                  checked={selectedCategory === category.id}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-4 h-4 mt-1 text-blue-600 focus:ring-blue-500"
-                />
-                <div className="ml-3">
-                  <span className="font-medium text-gray-900 block">{category.name}</span>
-                  <span className="text-sm text-gray-500">{category.desc}</span>
-                </div>
-              </label>
-            ))}
-          </div>
+          {configLoading ? (
+            <div className="flex items-center gap-2 text-gray-600">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading case types...
+            </div>
+          ) : configError ? (
+            <p className="text-red-600 text-sm">{configError}</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {caseTypes.map((ct) => (
+                <label
+                  key={ct.id}
+                  className={`flex items-start p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                    selectedCategory === ct.code
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-blue-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="caseCategory"
+                    value={ct.code}
+                    checked={selectedCategory === ct.code}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="w-4 h-4 mt-1 text-blue-600 focus:ring-blue-500"
+                  />
+                  <div className="ml-3">
+                    <span className="font-medium text-gray-900 block">{ct.name}</span>
+                    <span className="text-sm text-gray-500">{ct.description ?? ''}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
         
         {/* Hidden File Input */}
@@ -266,18 +330,27 @@ export function DocumentUpload({ onNavigate }: DocumentUploadProps) {
         {/* Action Buttons */}
         <div className="flex items-center justify-between">
           <button
-            onClick={() => onNavigate('dashboard')}
+            onClick={() => onNavigate('upload')}
             className="text-gray-600 hover:text-gray-900 transition-colors"
           >
-            ← Back to Dashboard
+            ← Back
           </button>
           <button
             onClick={handleProceed}
             className="flex items-center gap-2 bg-[#175784] text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={files.length === 0}
+            disabled={!selectedFirm || !selectedCategory || proceedLoading}
           >
-            Proceed to Extraction
-            <ChevronRight className="w-5 h-5" />
+            {proceedLoading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Creating session...
+              </>
+            ) : (
+              <>
+                Proceed to Extraction
+                <ChevronRight className="w-5 h-5" />
+              </>
+            )}
           </button>
         </div>
       </div>

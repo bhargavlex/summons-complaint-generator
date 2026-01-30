@@ -1,4 +1,4 @@
-import { FileText, TrendingUp, Clock, CheckCircle, Upload, Sparkles } from 'lucide-react';
+import { FileText, Clock } from 'lucide-react';
 import { Screen } from '../App';
 
 interface DashboardProps {

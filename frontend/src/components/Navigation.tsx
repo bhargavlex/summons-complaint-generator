@@ -1,4 +1,4 @@
-import { FileText, Home, Upload, FolderOpen, Plus } from 'lucide-react';
+import { FileText, Upload } from 'lucide-react';
 import { Screen } from '../App';
 
 interface NavigationProps {
@@ -7,12 +7,6 @@ interface NavigationProps {
 }
 
 export function Navigation({ currentScreen, onNavigate }: NavigationProps) {
-  const handleNewSession = () => {
-    if (confirm('Start a new session? This will reset the current work.')) {
-      onNavigate('upload');
-    }
-  };
-
   const navItems = [
     { id: 'upload' as Screen, label: 'Upload', icon: Upload },
     { id: 'extraction' as Screen, label: 'Review & Extract', icon: FileText },
@@ -54,13 +48,6 @@ export function Navigation({ currentScreen, onNavigate }: NavigationProps) {
             </nav>
           </div>
 
-          {/* <button
-            onClick={handleNewSession}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            New Session
-          </button> */}
         </div>
       </div>
     </header>

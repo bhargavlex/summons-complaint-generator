@@ -3,6 +3,20 @@ Example usage of LLM Engine for field extraction.
 
 This demonstrates how to use the LLM engine to extract fields from
 case-screen documents and additional supporting documents.
+
+First time: install dependencies from backend directory:
+  cd backend
+  pip install -r requirements.txt
+  # or: python -m pip install -r requirements.txt
+
+Run:
+  cd backend
+  python -m app.services.example_usage
+
+Or with a specific PDF:
+  set EXAMPLE_PDF_PATH=C:\path\to\your\case-screen.pdf   (Windows)
+  export EXAMPLE_PDF_PATH=/path/to/your/case-screen.pdf  (Linux/macOS)
+  python -m app.services.example_usage
 """
 
 import asyncio
@@ -15,30 +29,32 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# PDF path: use EXAMPLE_PDF_PATH env, or default relative to this file
+DEFAULT_PDF = Path(__file__).parent / "Cohan Law PLLC - Sarante - case screen.pdf"
+
+
 async def example_extraction():
     """
     Example: Extract fields from case-screen PDF.
-    
-    Example PDF: "Cohan Law PLLC - Sarante - Claim leter.pdf"
     """
-    
-    # Initialize LLM Engine
-    # Automatically detects Azure OpenAI or standard OpenAI from .env settings
-    llm_engine = LLMEngine()
-    
-    # Path to case-screen PDF
-    case_screen_pdf = "D:/summons-complaint-generator/backend/app/services/Cohan Law PLLC - Sarante - case screen.pdf"
-    
-    # Check if file exists
-    if not Path(case_screen_pdf).exists():
+    # Path to case-screen PDF (env override or default)
+    case_screen_pdf = os.getenv("EXAMPLE_PDF_PATH", str(DEFAULT_PDF))
+    case_screen_pdf = Path(case_screen_pdf).resolve()
+
+    if not case_screen_pdf.exists():
         print(f"Error: PDF file not found: {case_screen_pdf}")
+        print("Set EXAMPLE_PDF_PATH to your case-screen PDF path, or place a PDF at:")
+        print(f"  {DEFAULT_PDF}")
         return
-    
+
+    # Initialize LLM Engine (Azure or standard OpenAI from .env)
+    llm_engine = LLMEngine()
+
     print(f"Processing case-screen document: {case_screen_pdf}")
     print("=" * 80)
-    
+
     # Process case-screen document (Primary iteration)
-    state = await llm_engine.process_case_screen_document(case_screen_pdf)
+    state = await llm_engine.process_case_screen_document(str(case_screen_pdf))
     
     # Get summary
     summary = llm_engine.get_extraction_summary(state)
@@ -52,7 +68,10 @@ async def example_extraction():
     
     print("\nExtracted Fields:")
     for field_name, value in summary['extracted_values'].items():
-        print(f"  {field_name}: {value[:100]}...")
+        val_str = (value or "")[:100]
+        if len(value or "") > 100:
+            val_str += "..."
+        print(f"  {field_name}: {val_str}")
     
     print("\nMissing Fields:")
     for field_name in summary['missing_field_names']:
@@ -137,21 +156,24 @@ async def example_iterative_extraction():
     print(json.dumps(summary, indent=2))
 
 
-if __name__ == "__main__":
-    # Check if either OpenAI or Azure OpenAI configuration is available
-    
+def _has_llm_config() -> bool:
+    """True if OpenAI or Azure OpenAI is configured."""
+    has_openai = bool(os.getenv("OPENAI_API_KEY"))
     has_azure = bool(
-        os.getenv("AZURE_OPENAI_KEY") and 
-        os.getenv("AZURE_OPENAI_ENDPOINT") and 
-        os.getenv("AZURE_OPENAI_DEPLOYMENT")
+        (os.getenv("AZURE_OPENAI_API_KEY") or os.getenv("AZURE_OPENAI_KEY"))
+        and os.getenv("AZURE_OPENAI_ENDPOINT")
+        and os.getenv("AZURE_OPENAI_DEPLOYMENT")
     )
-    
-    if not has_azure:
-        print("Error: No OpenAI configuration found")
-        print("Please set one of the following in .env file:")
-        print("  For standard OpenAI: OPENAI_API_KEY and OPENAI_MODEL")
-        print("  For Azure OpenAI: AZURE_OPENAI_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT")
+    return has_openai or has_azure
+
+
+if __name__ == "__main__":
+    if not _has_llm_config():
+        print("Error: No LLM configuration found.")
+        print("Set in .env (or environment):")
+        print("  Standard OpenAI: OPENAI_API_KEY (and optionally OPENAI_MODEL)")
+        print("  Azure OpenAI: AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT")
         exit(1)
-    
-    # Run example
+
+    print("Running example_extraction()...")
     asyncio.run(example_extraction())

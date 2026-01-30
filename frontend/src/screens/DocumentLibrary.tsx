@@ -80,7 +80,7 @@ const documents: Document[] = [
   },
 ];
 
-export function DocumentLibrary({ onNavigate }: DocumentLibraryProps) {
+export function DocumentLibrary({ onNavigate: _onNavigate }: DocumentLibraryProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
 

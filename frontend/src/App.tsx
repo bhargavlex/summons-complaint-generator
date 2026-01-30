@@ -8,20 +8,35 @@ export type Screen =
   | "extraction"
   | "library";
 
+export interface ExtractedField {
+  id: string;
+  fieldName: string;
+  value: string;
+  tag: "extracted" | "missing" | "manual override";
+}
+
 export default function App() {
-  const [currentScreen, setCurrentScreen] =
-    useState<Screen>("upload");
+  const [currentScreen, setCurrentScreen] = useState<Screen>("upload");
+  const [sessionUuid, setSessionUuid] = useState<string | null>(null);
 
   const renderScreen = () => {
     switch (currentScreen) {
       case "upload":
-        return <DocumentUpload onNavigate={setCurrentScreen} />;
+        return (
+          <DocumentUpload
+            onNavigate={setCurrentScreen}
+            onSessionCreated={setSessionUuid}
+          />
+        );
       case "extraction":
         return (
-          <ExtractionReview onNavigate={setCurrentScreen} />
+          <ExtractionReview
+            onNavigate={setCurrentScreen}
+            sessionUuid={sessionUuid}
+          />
         );
       default:
-        return <DocumentUpload onNavigate={setCurrentScreen} />;
+        return <DocumentUpload onNavigate={setCurrentScreen} onSessionCreated={setSessionUuid} />;
     }
   };
 
