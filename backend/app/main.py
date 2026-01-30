@@ -1,3 +1,7 @@
+"""
+Summons & Complaint Generator - FastAPI application.
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
@@ -5,24 +9,26 @@ from app.api.v1.router import api_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url="/api/v1/openapi.json"
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
 
 # Set all CORS enabled origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Include API v1 router
-app.include_router(api_router, prefix="/api/v1")
+app.include_router(api_router, prefix=settings.API_V1_STR)
+
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to Summons & Complaint Generator API"}
+    return {"service": settings.PROJECT_NAME, "docs": f"{settings.API_V1_STR}/docs"}
+
 
 @app.get("/health")
 def health_check():

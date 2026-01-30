@@ -1,11 +1,19 @@
 """
-Application configuration
+Application configuration settings.
 """
+
 from pydantic_settings import BaseSettings
 from typing import Optional
+import os
 
 
 class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
+    
+    # API Configuration
+    API_V1_STR: str = "/api/v1"
+    PROJECT_NAME: str = "Summons & Complaint Generator"
+    
     # Database
     DATABASE_URL: str = "mysql+pymysql://appuser:apppass@localhost:3306/appdb"
     
@@ -17,13 +25,32 @@ class Settings(BaseSettings):
     
     # Application
     DEBUG: bool = True
-    PROJECT_NAME: str = "Summons & Complaint Generator"
+    
+    # OpenAI Configuration (Standard OpenAI)
+    
+    # Azure OpenAI Configuration
+    AZURE_OPENAI_KEY: Optional[str] = os.getenv("AZURE_OPENAI_KEY")
+    AZURE_OPENAI_ENDPOINT: Optional[str] = os.getenv("AZURE_OPENAI_ENDPOINT")
+    AZURE_OPENAI_DEPLOYMENT: Optional[str] = os.getenv("AZURE_OPENAI_DEPLOYMENT")
+    AZURE_OPENAI_API_VERSION: Optional[str] = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+    
+    # PDF to Image Configuration
+    POPPLER_PATH: Optional[str] = os.getenv("POPPLER_PATH")
+    
+    # Determine which provider to use
+    @property
+    def use_azure_openai(self) -> bool:
+        """Check if Azure OpenAI configuration is available"""
+        return bool(self.AZURE_OPENAI_KEY and self.AZURE_OPENAI_ENDPOINT and self.AZURE_OPENAI_DEPLOYMENT)
     
     # File Storage
     UPLOAD_DIR: str = "./uploads"
     TEMPLATE_DIR: str = "./templates"
     PREVIEW_DIR: str = "./previews"
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
+    
+    # CORS
+    BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
     
     class Config:
         env_file = ".env"
