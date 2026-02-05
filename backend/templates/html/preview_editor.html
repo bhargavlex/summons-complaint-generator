@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Preview Editor - Session {{ session_uuid }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            font-size: 24px;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+        
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #229954;
+        }
+        
+        .btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+        
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        
+        .panel h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 20px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .fields-list {
+            max-height: calc(100vh - 300px);
+            overflow-y: auto;
+        }
+        
+        .field-item {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .field-item.manual {
+            border-left-color: #27ae60;
+        }
+        
+        .field-label {
+            display: block;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .field-description {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-bottom: 8px;
+            font-style: italic;
+        }
+        
+        .field-input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        
+        .field-input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        .field-meta {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+        
+        .field-source {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        
+        .badge-manual {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .badge-extracted {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .preview-section {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .preview-actions {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .preview-container {
+            flex: 1;
+            border: 2px dashed #ddd;
+            border-radius: 6px;
+            padding: 20px;
+            text-align: center;
+            background: #fafafa;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 400px;
+        }
+        
+        .preview-container iframe {
+            width: 100%;
+            height: 100%;
+            min-height: 600px;
+            border: none;
+            border-radius: 4px;
+        }
+        
+        .preview-placeholder {
+            color: #7f8c8d;
+        }
+        
+        .preview-placeholder svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+        
+        #docx-preview {
+            width: 100%;
+            min-height: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 20px;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        #docx-preview .docx-wrapper {
+            max-width: 8.5in;
+            margin: 0 auto;
+            padding: 1in;
+            background: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .preview-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+            color: #7f8c8d;
+        }
+        
+        .preview-loading .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        .status-message {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status-message.show {
+            display: block;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 1024px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📄 Preview Editor</h1>
+            <div class="header-actions">
+                <button class="btn btn-success" onclick="downloadPreview()">
+                    ⬇️ Download DOCX
+                </button>
+                <button class="btn btn-primary" onclick="regeneratePreview()">
+                    🔄 Regenerate Preview
+                </button>
+            </div>
+        </div>
+        
+        <div id="statusMessage" class="status-message"></div>
+        
+        <div class="content">
+            <div class="panel">
+                <h2>📝 Field Values</h2>
+                <div class="fields-list" id="fieldsList">
+                    {% for field in fields %}
+                    <div class="field-item {% if field.is_manual %}manual{% endif %}" data-field-id="{{ field.id }}">
+                        <label class="field-label" for="field_{{ field.id }}">
+                            {{ field.display_name }}
+                            {% if field.is_manual %}
+                            <span class="badge badge-manual">Manual</span>
+                            {% else %}
+                            <span class="badge badge-extracted">Extracted</span>
+                            {% endif %}
+                        </label>
+                        {% if field.description %}
+                        <div class="field-description">{{ field.description }}</div>
+                        {% endif %}
+                        <input 
+                            type="text" 
+                            id="field_{{ field.id }}"
+                            class="field-input" 
+                            value="{{ field.current_value }}"
+                            data-field-value-id="{{ field.id }}"
+                            data-original-value="{{ field.current_value }}"
+                            onchange="updateField({{ field.id }}, this.value)"
+                            placeholder="{{ field.placeholder }}"
+                        >
+                        <div class="field-meta">
+                            <div class="field-source">
+                                <span>Placeholder: <code>{{ field.placeholder }}</code></span>
+                            </div>
+                            <span>Key: <code>{{ field.field_key }}</code></span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="panel preview-section">
+                <h2>👁️ Preview</h2>
+                <div class="preview-container" id="previewContainer">
+                    <div class="preview-placeholder" id="previewPlaceholder">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p>Preview will appear here after fields are updated</p>
+                        <p style="margin-top: 10px; font-size: 12px;">Click "Regenerate Preview" to generate the document</p>
+                    </div>
+                    <div id="docx-preview" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- DOCX Preview Library Dependencies -->
+    <script src="https://unpkg.com/jszip/dist/jszip.min.js"></script>
+    <script src="https://unpkg.com/docx-preview@0.1.4/dist/docx-preview.min.js"></script>
+    
+    <script>
+        const sessionUuid = '{{ session_uuid }}';
+        const apiBase = `/api/v1/sessions/${sessionUuid}`;
+        let updateTimeout = null;
+        let previewBlob = null;
+        
+        function showStatus(message, type = 'success') {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message;
+            statusEl.className = `status-message ${type} show`;
+            setTimeout(() => {
+                statusEl.classList.remove('show');
+            }, 3000);
+        }
+        
+        async function updateField(fieldValueId, value) {
+            const input = document.querySelector(`input[data-field-value-id="${fieldValueId}"]`);
+            const fieldItem = input.closest('.field-item');
+            
+            // Clear any existing timeout
+            if (updateTimeout) {
+                clearTimeout(updateTimeout);
+            }
+            
+            // Show loading state
+            input.style.borderColor = '#f39c12';
+            fieldItem.style.opacity = '0.7';
+            
+            // Debounce: wait 500ms after user stops typing
+            updateTimeout = setTimeout(async () => {
+                try {
+                    const response = await fetch(`${apiBase}/fields/${fieldValueId}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ value: value })
+                    });
+                    
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || 'Failed to update field');
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Update UI
+                    input.dataset.originalValue = data.current_value;
+                    input.style.borderColor = '#27ae60';
+                    
+                    // Update badge if manual value was set
+                    if (data.manual_value) {
+                        fieldItem.classList.add('manual');
+                        const badge = fieldItem.querySelector('.badge');
+                        if (badge) {
+                            badge.textContent = 'Manual';
+                            badge.className = 'badge badge-manual';
+                        }
+                    }
+                    
+                    showStatus(`Field "${data.field_key}" updated successfully. Preview updated on server.`, 'success');
+                    
+                    // Preview is already regenerated on server, no need to call regeneratePreview()
+                    // Just update the UI to indicate preview is ready
+                    if (data.preview_updated) {
+                        updatePreviewStatus(true);
+                    }
+                    
+                } catch (error) {
+                    console.error('Error updating field:', error);
+                    input.style.borderColor = '#e74c3c';
+                    showStatus(`Error: ${error.message}`, 'error');
+                } finally {
+                    fieldItem.style.opacity = '1';
+                }
+            }, 500);
+        }
+        
+        async function regeneratePreview() {
+            const btn = event?.target || document.querySelector('button[onclick="regeneratePreview()"]');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Regenerating... <span class="loading"></span>';
+            
+            try {
+                // Use the regenerate endpoint that doesn't trigger download
+                const response = await fetch(`${apiBase}/preview/regenerate`, {
+                    method: 'POST',
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to regenerate preview');
+                }
+                
+                const data = await response.json();
+                showStatus('Preview regenerated successfully. Loading preview...', 'success');
+                // Reload the preview
+                loadPreview();
+                
+            } catch (error) {
+                console.error('Error regenerating preview:', error);
+                showStatus(`Error: ${error.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+        
+        // Wait for libraries to load
+        function waitForLibraries(maxWait = 5000) {
+            return new Promise((resolve, reject) => {
+                const startTime = Date.now();
+                const checkInterval = setInterval(() => {
+                    const jszipLoaded = typeof JSZip !== 'undefined';
+                    const docxLoaded = typeof docx !== 'undefined' || typeof window.docx !== 'undefined';
+                    
+                    if (jszipLoaded && docxLoaded) {
+                        clearInterval(checkInterval);
+                        resolve();
+                    } else if (Date.now() - startTime > maxWait) {
+                        clearInterval(checkInterval);
+                        reject(new Error(`Libraries not loaded after ${maxWait}ms. JSZip: ${jszipLoaded}, DOCX: ${docxLoaded}`));
+                    }
+                }, 100);
+            });
+        }
+        
+        async function loadPreview() {
+            const placeholder = document.getElementById('previewPlaceholder');
+            const previewDiv = document.getElementById('docx-preview');
+            
+            // Show loading
+            placeholder.innerHTML = `
+                <div class="preview-loading">
+                    <div class="spinner"></div>
+                    <p>Loading preview...</p>
+                </div>
+            `;
+            
+            try {
+                // Wait for libraries to be available
+                await waitForLibraries();
+                
+                // Fetch the DOCX file as blob
+                const response = await fetch(`${apiBase}/preview?t=${Date.now()}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to load preview: ${response.status} ${response.statusText}`);
+                }
+                
+                previewBlob = await response.blob();
+                
+                // Get the docx library (could be global 'docx' or 'window.docx')
+                const docxLib = typeof docx !== 'undefined' ? docx : (typeof window.docx !== 'undefined' ? window.docx : null);
+                
+                if (!docxLib || typeof docxLib.renderAsync !== 'function') {
+                    throw new Error('DOCX preview library not available. renderAsync function not found.');
+                }
+                
+                previewDiv.innerHTML = '<div class="docx-wrapper"></div>';
+                const wrapper = previewDiv.querySelector('.docx-wrapper');
+                
+                // Render the DOCX file
+                await docxLib.renderAsync(previewBlob, wrapper, null, {
+                    className: 'docx',
+                    inWrapper: true,
+                    ignoreWidth: false,
+                    ignoreHeight: false,
+                    ignoreFonts: false,
+                    breakPages: true,
+                    experimental: false,
+                    trimXmlDeclaration: true,
+                    useBase64URL: true,
+                    useMathMLPolyfill: true,
+                });
+                
+                // Hide placeholder, show preview
+                placeholder.style.display = 'none';
+                previewDiv.style.display = 'block';
+            } catch (error) {
+                console.error('Error loading preview:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    stack: error.stack,
+                    docxAvailable: typeof window.docx !== 'undefined',
+                    jszipAvailable: typeof JSZip !== 'undefined'
+                });
+                
+                placeholder.innerHTML = `
+                    <div class="preview-placeholder">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p style="font-size: 16px; font-weight: 600; color: #27ae60;">✓ Preview Ready</p>
+                        <p style="margin-top: 10px; font-size: 14px;">Your document has been updated with the latest field values.</p>
+                        <p style="margin-top: 10px; font-size: 12px; color: #e74c3c;">⚠️ Preview rendering unavailable: ${error.message}</p>
+                        <p style="margin-top: 5px; font-size: 11px; color: #7f8c8d;">Check browser console (F12) for details</p>
+                        <p style="margin-top: 15px;">
+                            <button class="btn btn-success" onclick="downloadPreview()">
+                                ⬇️ Download to View
+                            </button>
+                        </p>
+                    </div>
+                `;
+                previewDiv.style.display = 'none';
+            }
+        }
+        
+        function updatePreviewStatus(isReady) {
+            if (isReady) {
+                // Reload preview when it's ready
+                loadPreview();
+            }
+        }
+        
+        function downloadPreview() {
+            // Use the blob if we have it, otherwise fetch
+            if (previewBlob) {
+                const url = URL.createObjectURL(previewBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `session_${sessionUuid}_preview.docx`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } else {
+                // Fallback: direct download
+                window.location.href = `${apiBase}/preview?t=${Date.now()}`;
+            }
+        }
+        
+        // Initialize preview on page load
+        window.addEventListener('load', () => {
+            {% if preview_generated %}
+            // Load preview if it was already generated
+            loadPreview();
+            {% else %}
+            // Show placeholder
+            const placeholder = document.getElementById('previewPlaceholder');
+            placeholder.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p>Preview will appear here after fields are updated</p>
+                <p style="margin-top: 10px; font-size: 12px;">Click "Regenerate Preview" to generate the document</p>
+            `;
+            {% endif %}
+        });
+    </script>
+</body>
+</html>
