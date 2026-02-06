@@ -86,6 +86,12 @@
             gap: 20px;
         }
         
+        .left-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
         .panel {
             background: white;
             border-radius: 8px;
@@ -299,6 +305,105 @@
             100% { transform: rotate(360deg); }
         }
         
+        .party-section {
+            margin-top: 0;
+        }
+        .party-section h2 {
+            margin-bottom: 6px;
+        }
+        .party-hint {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+        .party-list {
+            max-height: 280px;
+            overflow-y: auto;
+        }
+        .party-card {
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #9b59b6;
+            padding: 12px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+        .party-card.defendant {
+            border-left-color: #e67e22;
+        }
+        .party-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .party-card-index {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .party-card-actions {
+            display: flex;
+            gap: 6px;
+        }
+        .party-card-actions button {
+            padding: 4px 10px;
+            font-size: 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #ecf0f1;
+            color: #2c3e50;
+        }
+        .party-card-actions button:hover {
+            background: #bdc3c7;
+        }
+        .party-card-actions button.delete-btn:hover {
+            background: #e74c3c;
+            color: white;
+        }
+        .party-card-line {
+            color: #555;
+            margin-bottom: 2px;
+        }
+        .party-form {
+            background: #f0f4f8;
+            border-radius: 6px;
+            padding: 14px;
+            margin-bottom: 12px;
+            border: 1px dashed #3498db;
+        }
+        .party-form label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-top: 8px;
+            margin-bottom: 2px;
+        }
+        .party-form label:first-of-type { margin-top: 0; }
+        .party-form input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .party-form-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+        }
+        .party-form-actions button {
+            padding: 8px 14px;
+            font-size: 13px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .party-form-actions .save-btn { background: #27ae60; color: white; }
+        .party-form-actions .cancel-btn { background: #95a5a6; color: white; }
+        
         @media (max-width: 1024px) {
             .content {
                 grid-template-columns: 1fr;
@@ -309,8 +414,9 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📄 Preview Editor</h1>
+            <h1>📄 Preview Editor <span style="font-size:14px;font-weight:normal;color:#7f8c8d;">– Session {{ session_uuid }}</span></h1>
             <div class="header-actions">
+                <a href="/api/v1/preview-editor-launcher" class="btn" style="background:#95a5a6;color:#fff;text-decoration:none;">← Open another session</a>
                 <button class="btn btn-success" onclick="downloadPreview()">
                     ⬇️ Download DOCX
                 </button>
@@ -323,40 +429,84 @@
         <div id="statusMessage" class="status-message"></div>
         
         <div class="content">
-            <div class="panel">
-                <h2>📝 Field Values</h2>
-                <div class="fields-list" id="fieldsList">
-                    {% for field in fields %}
-                    <div class="field-item {% if field.is_manual %}manual{% endif %}" data-field-id="{{ field.id }}">
-                        <label class="field-label" for="field_{{ field.id }}">
-                            {{ field.display_name }}
-                            {% if field.is_manual %}
-                            <span class="badge badge-manual">Manual</span>
-                            {% else %}
-                            <span class="badge badge-extracted">Extracted</span>
+            <div class="left-column">
+                <div class="panel">
+                    <h2>📝 Field Values</h2>
+                    <div class="fields-list" id="fieldsList">
+                        {% for field in fields %}
+                        <div class="field-item {% if field.is_manual %}manual{% endif %}" data-field-id="{{ field.id }}">
+                            <label class="field-label" for="field_{{ field.id }}">
+                                {{ field.display_name }}
+                                {% if field.is_manual %}
+                                <span class="badge badge-manual">Manual</span>
+                                {% else %}
+                                <span class="badge badge-extracted">Extracted</span>
+                                {% endif %}
+                            </label>
+                            {% if field.description %}
+                            <div class="field-description">{{ field.description }}</div>
                             {% endif %}
-                        </label>
-                        {% if field.description %}
-                        <div class="field-description">{{ field.description }}</div>
-                        {% endif %}
-                        <input 
-                            type="text" 
-                            id="field_{{ field.id }}"
-                            class="field-input" 
-                            value="{{ field.current_value }}"
-                            data-field-value-id="{{ field.id }}"
-                            data-original-value="{{ field.current_value }}"
-                            onchange="updateField({{ field.id }}, this.value)"
-                            placeholder="{{ field.placeholder }}"
-                        >
-                        <div class="field-meta">
-                            <div class="field-source">
-                                <span>Placeholder: <code>{{ field.placeholder }}</code></span>
+                            <input 
+                                type="text" 
+                                id="field_{{ field.id }}"
+                                class="field-input" 
+                                value="{{ field.current_value }}"
+                                data-field-value-id="{{ field.id }}"
+                                data-original-value="{{ field.current_value }}"
+                                onchange="updateField({{ field.id }}, this.value)"
+                                placeholder="{{ field.placeholder }}"
+                            >
+                            <div class="field-meta">
+                                <div class="field-source">
+                                    <span>Placeholder: <code>{{ field.placeholder }}</code></span>
+                                </div>
+                                <span>Key: <code>{{ field.field_key }}</code></span>
                             </div>
-                            <span>Key: <code>{{ field.field_key }}</code></span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="panel party-section">
+                    <h2>👤 Plaintiff</h2>
+                    <div id="plaintiffForm" class="party-form">
+                        <label>Name</label>
+                        <input type="text" id="plaintiffName" placeholder="Full name">
+                        <label>Address</label>
+                        <input type="text" id="plaintiffAddress" placeholder="Street address">
+                        <label>City</label>
+                        <input type="text" id="plaintiffCity" placeholder="City">
+                        <label>State</label>
+                        <input type="text" id="plaintiffState" placeholder="State">
+                        <label>Zip Code</label>
+                        <input type="text" id="plaintiffZip" placeholder="Zip">
+                        <label>County</label>
+                        <input type="text" id="plaintiffCounty" placeholder="County">
+                        <div class="party-form-actions">
+                            <button type="button" class="save-btn" onclick="savePlaintiff()">Save Plaintiff</button>
                         </div>
                     </div>
-                    {% endfor %}
+                </div>
+                
+                <div class="panel party-section">
+                    <h2>👤 Defendant</h2>
+                    <div id="defendantForm" class="party-form">
+                        <label>Name</label>
+                        <input type="text" id="defendantName" placeholder="Full name">
+                        <label>Address</label>
+                        <input type="text" id="defendantAddress" placeholder="Street address">
+                        <label>City</label>
+                        <input type="text" id="defendantCity" placeholder="City">
+                        <label>State</label>
+                        <input type="text" id="defendantState" placeholder="State">
+                        <label>Zip Code</label>
+                        <input type="text" id="defendantZip" placeholder="Zip">
+                        <label>County</label>
+                        <input type="text" id="defendantCounty" placeholder="County">
+                        <div class="party-form-actions">
+                            <button type="button" class="save-btn" onclick="saveDefendant()">Save Defendant</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -385,6 +535,10 @@
         const apiBase = `/api/v1/sessions/${sessionUuid}`;
         let updateTimeout = null;
         let previewBlob = null;
+        const initialPlaintiffs = {{ plaintiffs | tojson }};
+        const initialDefendants = {{ defendants | tojson }};
+        let plaintiff = (initialPlaintiffs && initialPlaintiffs.length) ? initialPlaintiffs[0] : null;
+        let defendant = (initialDefendants && initialDefendants.length) ? initialDefendants[0] : null;
         
         function showStatus(message, type = 'success') {
             const statusEl = document.getElementById('statusMessage');
@@ -612,13 +766,79 @@
             }
         }
         
-        // Initialize preview on page load
+        // --- Plaintiff & Defendant (one each) ---
+        function setEl(id, val) { const e = document.getElementById(id); if (e) e.value = val || ''; }
+        function getEl(id) { return (document.getElementById(id) || {}).value || ''; }
+        function fillPlaintiffForm() {
+            if (plaintiff) {
+                setEl('plaintiffName', plaintiff.name);
+                setEl('plaintiffAddress', plaintiff.address);
+                setEl('plaintiffCity', plaintiff.city);
+                setEl('plaintiffState', plaintiff.state);
+                setEl('plaintiffZip', plaintiff.zip_code);
+                setEl('plaintiffCounty', plaintiff.county);
+            } else {
+                setEl('plaintiffName', ''); setEl('plaintiffAddress', ''); setEl('plaintiffCity', '');
+                setEl('plaintiffState', ''); setEl('plaintiffZip', ''); setEl('plaintiffCounty', '');
+            }
+        }
+        function fillDefendantForm() {
+            if (defendant) {
+                setEl('defendantName', defendant.name);
+                setEl('defendantAddress', defendant.address);
+                setEl('defendantCity', defendant.city);
+                setEl('defendantState', defendant.state);
+                setEl('defendantZip', defendant.zip_code);
+                setEl('defendantCounty', defendant.county);
+            } else {
+                setEl('defendantName', ''); setEl('defendantAddress', ''); setEl('defendantCity', '');
+                setEl('defendantState', ''); setEl('defendantZip', ''); setEl('defendantCounty', '');
+            }
+        }
+        async function refetchPlaintiff() {
+            const r = await fetch(`${apiBase}/plaintiffs`);
+            if (!r.ok) return;
+            const data = await r.json();
+            plaintiff = data.length ? data[0] : null;
+            fillPlaintiffForm();
+        }
+        async function refetchDefendant() {
+            const r = await fetch(`${apiBase}/defendants`);
+            if (!r.ok) return;
+            const data = await r.json();
+            defendant = data.length ? data[0] : null;
+            fillDefendantForm();
+        }
+        async function savePlaintiff() {
+            const body = { name: getEl('plaintiffName'), address: getEl('plaintiffAddress'), city: getEl('plaintiffCity'), state: getEl('plaintiffState'), zip_code: getEl('plaintiffZip'), county: getEl('plaintiffCounty') };
+            try {
+                const r = await fetch(`${apiBase}/plaintiffs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                if (!r.ok) { const err = await r.json(); throw new Error(err.detail || 'Failed to save plaintiff'); }
+                plaintiff = await r.json();
+                showStatus('Plaintiff saved. Regenerating preview…', 'success');
+                await fetch(`${apiBase}/preview/regenerate`, { method: 'POST' });
+                loadPreview();
+            } catch (e) { showStatus('Error: ' + e.message, 'error'); }
+        }
+        async function saveDefendant() {
+            const body = { name: getEl('defendantName'), address: getEl('defendantAddress'), city: getEl('defendantCity'), state: getEl('defendantState'), zip_code: getEl('defendantZip'), county: getEl('defendantCounty') };
+            try {
+                const r = await fetch(`${apiBase}/defendants`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                if (!r.ok) { const err = await r.json(); throw new Error(err.detail || 'Failed to save defendant'); }
+                defendant = await r.json();
+                showStatus('Defendant saved. Regenerating preview…', 'success');
+                await fetch(`${apiBase}/preview/regenerate`, { method: 'POST' });
+                loadPreview();
+            } catch (e) { showStatus('Error: ' + e.message, 'error'); }
+        }
+        
+        // Initialize preview and parties on page load
         window.addEventListener('load', () => {
+            fillPlaintiffForm();
+            fillDefendantForm();
             {% if preview_generated %}
-            // Load preview if it was already generated
             loadPreview();
             {% else %}
-            // Show placeholder
             const placeholder = document.getElementById('previewPlaceholder');
             placeholder.innerHTML = `
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">

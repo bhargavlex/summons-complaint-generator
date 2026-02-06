@@ -7,13 +7,14 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
 from app.db.base import get_db
-from app.db.models import Session as SessionModel, FieldValue, TemplateField
+from app.db.models import Session as SessionModel, FieldValue, TemplateField, Plaintiff, Defendant
 from app.db.models.field_value import FieldValueStatus
 from app.services.preview_service import PreviewService
+from app.services.party_sync import sync_parties_from_field_values
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,15 @@ backend_dir = Path(__file__).parent.parent.parent.parent  # Go up to /app or bac
 templates_dir = backend_dir / "templates" / "html"
 templates_dir.mkdir(parents=True, exist_ok=True)
 templates = Jinja2Templates(directory=str(templates_dir))
+
+
+@router.get("/preview-editor-launcher", response_class=HTMLResponse, tags=["preview"])
+def get_preview_editor_launcher(request: Request):
+    """
+    Launcher page for the Preview Editor. Enter a session UUID to open the editor.
+    Links to the full editor at /api/v1/sessions/{session_uuid}/preview/edit (preview_editor.html).
+    """
+    return templates.TemplateResponse("preview_editor_launcher.html", {"request": request})
 
 
 @router.get("/sessions/{session_uuid}/preview", tags=["preview"])
@@ -122,6 +132,144 @@ class FieldValueUpdateRequest(BaseModel):
     value: str
 
 
+# Plaintiff / Defendant (parties) schemas
+class PartyBase(BaseModel):
+    name: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip_code: Optional[str] = None
+    county: Optional[str] = None
+
+
+class PartyCreate(PartyBase):
+    pass
+
+
+class PartyUpdate(BaseModel):
+    name: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip_code: Optional[str] = None
+    county: Optional[str] = None
+
+
+class PartyOut(PartyBase):
+    id: int
+    index: int
+
+    class Config:
+        from_attributes = True
+
+
+def _get_session_or_404(db: Session, session_uuid: str):
+    session = db.query(SessionModel).filter(SessionModel.uuid == session_uuid).first()
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Session not found: {session_uuid}")
+    return session
+
+
+@router.get("/sessions/{session_uuid}/plaintiffs", response_model=List[PartyOut], tags=["preview"])
+def list_plaintiffs(session_uuid: str, db: Session = Depends(get_db)):
+    session = _get_session_or_404(db, session_uuid)
+    rows = db.query(Plaintiff).filter(Plaintiff.session_id == session.id).order_by(Plaintiff.index).all()
+    return rows
+
+
+@router.post("/sessions/{session_uuid}/plaintiffs", response_model=PartyOut, status_code=status.HTTP_201_CREATED, tags=["preview"])
+def add_plaintiff(session_uuid: str, body: PartyCreate, db: Session = Depends(get_db)):
+    """Upsert: one plaintiff per session. If one exists, update it; otherwise create."""
+    session = _get_session_or_404(db, session_uuid)
+    row = db.query(Plaintiff).filter(Plaintiff.session_id == session.id).order_by(Plaintiff.index).first()
+    if row:
+        for k, v in body.model_dump(exclude_unset=True).items():
+            setattr(row, k, v)
+        db.commit()
+        db.refresh(row)
+        return row
+    row = Plaintiff(session_id=session.id, index=1, name=body.name, address=body.address,
+                    city=body.city, state=body.state, zip_code=body.zip_code, county=body.county)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.patch("/sessions/{session_uuid}/plaintiffs/{party_id}", response_model=PartyOut, tags=["preview"])
+def update_plaintiff(session_uuid: str, party_id: int, body: PartyUpdate, db: Session = Depends(get_db)):
+    session = _get_session_or_404(db, session_uuid)
+    row = db.query(Plaintiff).filter(Plaintiff.id == party_id, Plaintiff.session_id == session.id).first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plaintiff not found")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(row, k, v)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.delete("/sessions/{session_uuid}/plaintiffs/{party_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["preview"])
+def delete_plaintiff(session_uuid: str, party_id: int, db: Session = Depends(get_db)):
+    session = _get_session_or_404(db, session_uuid)
+    row = db.query(Plaintiff).filter(Plaintiff.id == party_id, Plaintiff.session_id == session.id).first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plaintiff not found")
+    db.delete(row)
+    db.commit()
+    return None
+
+
+@router.get("/sessions/{session_uuid}/defendants", response_model=List[PartyOut], tags=["preview"])
+def list_defendants(session_uuid: str, db: Session = Depends(get_db)):
+    session = _get_session_or_404(db, session_uuid)
+    rows = db.query(Defendant).filter(Defendant.session_id == session.id).order_by(Defendant.index).all()
+    return rows
+
+
+@router.post("/sessions/{session_uuid}/defendants", response_model=PartyOut, status_code=status.HTTP_201_CREATED, tags=["preview"])
+def add_defendant(session_uuid: str, body: PartyCreate, db: Session = Depends(get_db)):
+    """Upsert: one defendant per session. If one exists, update it; otherwise create."""
+    session = _get_session_or_404(db, session_uuid)
+    row = db.query(Defendant).filter(Defendant.session_id == session.id).order_by(Defendant.index).first()
+    if row:
+        for k, v in body.model_dump(exclude_unset=True).items():
+            setattr(row, k, v)
+        db.commit()
+        db.refresh(row)
+        return row
+    row = Defendant(session_id=session.id, index=1, name=body.name, address=body.address,
+                    city=body.city, state=body.state, zip_code=body.zip_code, county=body.county)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.patch("/sessions/{session_uuid}/defendants/{party_id}", response_model=PartyOut, tags=["preview"])
+def update_defendant(session_uuid: str, party_id: int, body: PartyUpdate, db: Session = Depends(get_db)):
+    session = _get_session_or_404(db, session_uuid)
+    row = db.query(Defendant).filter(Defendant.id == party_id, Defendant.session_id == session.id).first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Defendant not found")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(row, k, v)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.delete("/sessions/{session_uuid}/defendants/{party_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["preview"])
+def delete_defendant(session_uuid: str, party_id: int, db: Session = Depends(get_db)):
+    session = _get_session_or_404(db, session_uuid)
+    row = db.query(Defendant).filter(Defendant.id == party_id, Defendant.session_id == session.id).first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Defendant not found")
+    db.delete(row)
+    db.commit()
+    return None
+
+
 @router.get("/sessions/{session_uuid}/fields", response_model=List[FieldValueResponse], tags=["preview"])
 def get_session_fields(
     session_uuid: str,
@@ -207,6 +355,12 @@ def update_field_value(
     
     db.commit()
     db.refresh(field_value)
+    
+    # Sync plaintiff/defendant tables from field_values (so party names from extraction stay in sync)
+    try:
+        sync_parties_from_field_values(session, db)
+    except Exception as e:
+        logger.warning("Failed to sync parties from field values: %s", e)
     
     # Regenerate preview silently (don't return file, just update on server)
     preview_updated = False
@@ -319,6 +473,20 @@ def get_preview_editor(
     # Sort by field_order if available
     fields_data.sort(key=lambda x: (x.get('field_order', 999), x['display_name']))
     
+    # Load plaintiffs and defendants for the session
+    plaintiffs = db.query(Plaintiff).filter(Plaintiff.session_id == session.id).order_by(Plaintiff.index).all()
+    defendants = db.query(Defendant).filter(Defendant.session_id == session.id).order_by(Defendant.index).all()
+    plaintiffs_data = [
+        {"id": p.id, "index": p.index, "name": p.name or "", "address": p.address or "", "city": p.city or "",
+         "state": p.state or "", "zip_code": p.zip_code or "", "county": p.county or ""}
+        for p in plaintiffs
+    ]
+    defendants_data = [
+        {"id": d.id, "index": d.index, "name": d.name or "", "address": d.address or "", "city": d.city or "",
+         "state": d.state or "", "zip_code": d.zip_code or "", "county": d.county or ""}
+        for d in defendants
+    ]
+    
     # Generate initial preview
     try:
         preview_service = PreviewService(db)
@@ -335,6 +503,8 @@ def get_preview_editor(
             "request": request,
             "session_uuid": session_uuid,
             "fields": fields_data,
+            "plaintiffs": plaintiffs_data,
+            "defendants": defendants_data,
             "preview_url": f"/api/v1/sessions/{session_uuid}/preview",
             "preview_generated": preview_generated
         }
